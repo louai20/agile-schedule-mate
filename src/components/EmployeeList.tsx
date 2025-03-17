@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Search, Check, X, User, Briefcase, Star, PlusCircle, ArrowRight } from 'lucide-react';
+import { Search, User, Briefcase, Star, PlusCircle, ArrowRight, Clock } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,17 +9,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
 
-// Mock employee data
+// Mock employee data with work percentage
 const MOCK_EMPLOYEES = [
-  { id: 1, name: 'Alice Johnson', role: 'Frontend Developer', skills: ['React', 'TypeScript', 'CSS'], availability: 'Full-time' },
-  { id: 2, name: 'Bob Smith', role: 'Backend Developer', skills: ['Node.js', 'Python', 'SQL'], availability: 'Part-time' },
-  { id: 3, name: 'Carol Davis', role: 'UX Designer', skills: ['Figma', 'Adobe XD', 'Sketch'], availability: 'Full-time' },
-  { id: 4, name: 'David Wilson', role: 'Project Manager', skills: ['Agile', 'Scrum', 'Jira'], availability: 'Full-time' },
-  { id: 5, name: 'Eve Brown', role: 'DevOps Engineer', skills: ['Docker', 'Kubernetes', 'AWS'], availability: 'Contract' },
-  { id: 6, name: 'Frank Taylor', role: 'QA Engineer', skills: ['Testing', 'Selenium', 'Cypress'], availability: 'Full-time' },
-  { id: 7, name: 'Grace Lee', role: 'Data Scientist', skills: ['Python', 'R', 'Machine Learning'], availability: 'Part-time' },
-  { id: 8, name: 'Henry Martin', role: 'Mobile Developer', skills: ['React Native', 'Swift', 'Kotlin'], availability: 'Full-time' },
+  { id: 1, name: 'Alice Johnson', role: 'Frontend Developer', skills: ['React', 'TypeScript', 'CSS'], availability: 'Full-time', workPercentage: 85 },
+  { id: 2, name: 'Bob Smith', role: 'Backend Developer', skills: ['Node.js', 'Python', 'SQL'], availability: 'Part-time', workPercentage: 45 },
+  { id: 3, name: 'Carol Davis', role: 'UX Designer', skills: ['Figma', 'Adobe XD', 'Sketch'], availability: 'Full-time', workPercentage: 90 },
+  { id: 4, name: 'David Wilson', role: 'Project Manager', skills: ['Agile', 'Scrum', 'Jira'], availability: 'Full-time', workPercentage: 78 },
+  { id: 5, name: 'Eve Brown', role: 'DevOps Engineer', skills: ['Docker', 'Kubernetes', 'AWS'], availability: 'Contract', workPercentage: 60 },
+  { id: 6, name: 'Frank Taylor', role: 'QA Engineer', skills: ['Testing', 'Selenium', 'Cypress'], availability: 'Full-time', workPercentage: 88 },
+  { id: 7, name: 'Grace Lee', role: 'Data Scientist', skills: ['Python', 'R', 'Machine Learning'], availability: 'Part-time', workPercentage: 50 },
+  { id: 8, name: 'Henry Martin', role: 'Mobile Developer', skills: ['React Native', 'Swift', 'Kotlin'], availability: 'Full-time', workPercentage: 72 },
 ];
 
 interface Employee {
@@ -28,6 +29,7 @@ interface Employee {
   role: string;
   skills: string[];
   availability: string;
+  workPercentage: number;
 }
 
 interface EmployeeListProps {
@@ -42,6 +44,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
   const [newEmployeeRole, setNewEmployeeRole] = useState('');
   const [newEmployeeSkills, setNewEmployeeSkills] = useState('');
   const [newEmployeeAvailability, setNewEmployeeAvailability] = useState('Full-time');
+  const [newEmployeeWorkPercentage, setNewEmployeeWorkPercentage] = useState(100);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const filteredEmployees = employees.filter((employee) => {
@@ -79,6 +82,20 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     setNewEmployeeRole('');
     setNewEmployeeSkills('');
     setNewEmployeeAvailability('Full-time');
+    setNewEmployeeWorkPercentage(100);
+  };
+
+  // Function to get color based on work percentage
+  const getWorkPercentageColor = (percentage: number) => {
+    if (percentage >= 80) return 'text-green-600';
+    if (percentage >= 50) return 'text-amber-600';
+    return 'text-red-600';
+  };
+
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 80) return 'bg-green-500';
+    if (percentage >= 50) return 'bg-amber-500';
+    return 'bg-red-500';
   };
 
   return (
@@ -146,6 +163,20 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                   <option value="Contract">Contract</option>
                 </select>
               </div>
+              <div className="space-y-2">
+                <label htmlFor="workPercentage" className="text-sm font-medium">
+                  Work Percentage: {newEmployeeWorkPercentage}%
+                </label>
+                <input
+                  id="workPercentage"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={newEmployeeWorkPercentage}
+                  onChange={(e) => setNewEmployeeWorkPercentage(parseInt(e.target.value))}
+                  className="w-full"
+                />
+              </div>
             </div>
             <div className="flex justify-end">
               <Button onClick={handleAddEmployee}>Add Employee</Button>
@@ -170,7 +201,10 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                 onClick={() => handleToggleEmployee(employee)}
                 className="ml-1 rounded-full hover:bg-muted/80 p-0.5"
               >
-                <X className="h-3 w-3" />
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x">
+                  <path d="M18 6 6 18"/>
+                  <path d="m6 6 12 12"/>
+                </svg>
               </button>
             </Badge>
           ))}
@@ -223,6 +257,25 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                       {skill}
                     </Badge>
                   ))}
+                </div>
+              </div>
+              
+              {/* Work Percentage Section */}
+              <div className="mt-3">
+                <div className="flex items-center mb-1">
+                  <Clock className="h-3 w-3 text-muted-foreground mr-1" />
+                  <span className="text-xs text-muted-foreground">Work Load</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Progress value={employee.workPercentage} className="h-2">
+                    <div 
+                      className={`h-full ${getProgressColor(employee.workPercentage)} rounded-full transition-all`} 
+                      style={{ width: `${employee.workPercentage}%` }}
+                    />
+                  </Progress>
+                  <span className={`text-xs font-medium ${getWorkPercentageColor(employee.workPercentage)}`}>
+                    {employee.workPercentage}%
+                  </span>
                 </div>
               </div>
               

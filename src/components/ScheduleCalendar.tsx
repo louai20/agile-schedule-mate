@@ -1,10 +1,13 @@
 
 import React, { useState } from 'react';
-import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info } from 'lucide-react';
+import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info, Trash2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 
 interface ScheduleCalendarProps {
   selectedEmployees: any[];
@@ -59,6 +62,10 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   // Dialog state for shift details
   const [selectedShift, setSelectedShift] = useState<ScheduleItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // State for employee change
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('');
+  // Alert dialog for shift deletion
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const handleSolveSchedule = () => {
     // This would call an API to use Timefold Solver in a real application
@@ -104,14 +111,62 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       );
       setScheduleItems(updatedItems);
       setDraggedItem(null);
+      toast.success(`Shift moved to ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayIndex]}`);
     }
   };
 
   // Handler for shift click to show details
   const handleShiftClick = (shift: ScheduleItem) => {
     setSelectedShift(shift);
+    setSelectedEmployee(''); // Reset selected employee
     setDialogOpen(true);
   };
+
+  // Handle adding an employee to a shift
+  const handleAddEmployee = () => {
+    if (selectedShift && selectedEmployee && !selectedShift.employees.includes(selectedEmployee)) {
+      const updatedItems = scheduleItems.map(item => 
+        item.id === selectedShift.id 
+          ? {...item, employees: [...item.employees, selectedEmployee]} 
+          : item
+      );
+      setScheduleItems(updatedItems);
+      setSelectedShift({...selectedShift, employees: [...selectedShift.employees, selectedEmployee]});
+      toast.success(`${selectedEmployee} added to ${selectedShift.title}`);
+      setSelectedEmployee(''); // Reset selection
+    }
+  };
+
+  // Handle removing an employee from a shift
+  const handleRemoveEmployee = (employeeName: string) => {
+    if (selectedShift) {
+      const updatedEmployees = selectedShift.employees.filter(e => e !== employeeName);
+      const updatedItems = scheduleItems.map(item => 
+        item.id === selectedShift.id 
+          ? {...item, employees: updatedEmployees} 
+          : item
+      );
+      setScheduleItems(updatedItems);
+      setSelectedShift({...selectedShift, employees: updatedEmployees});
+      toast.success(`${employeeName} removed from ${selectedShift.title}`);
+    }
+  };
+
+  // Handle deleting a shift
+  const handleDeleteShift = () => {
+    if (selectedShift) {
+      const updatedItems = scheduleItems.filter(item => item.id !== selectedShift.id);
+      setScheduleItems(updatedItems);
+      setDeleteDialogOpen(false);
+      setDialogOpen(false);
+      toast.success(`${selectedShift.title} has been removed from the schedule`);
+    }
+  };
+
+  // Available employees for selection (excluding those already assigned)
+  const availableEmployees = selectedEmployees
+    .map((emp: any) => emp.name)
+    .filter((name: string) => selectedShift && !selectedShift.employees.includes(name));
 
   if (!hasEnoughData) {
     return (
@@ -260,17 +315,77 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                 </div>
                 
                 <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Assigned Employees ({selectedShift.employees.length})</h4>
+                  <h4 className="font-medium text-sm flex items-center justify-between">
+                    <span>Assigned Employees ({selectedShift.employees.length})</span>
+                    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="h-7">
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Remove Shift
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will remove the shift "{selectedShift.title}" from the schedule.
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDeleteShift} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </h4>
+                  
                   <div className="space-y-2">
                     {selectedShift.employees.map((employee, idx) => (
-                      <div key={idx} className="flex items-center p-2 rounded-md bg-secondary/20">
-                        <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs mr-2">
-                          {employee.charAt(0)}
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-secondary/20">
+                        <div className="flex items-center">
+                          <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs mr-2">
+                            {employee.charAt(0)}
+                          </div>
+                          <div>{employee}</div>
                         </div>
-                        <div>{employee}</div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="h-7 text-red-500 hover:text-red-700 hover:bg-red-100"
+                          onClick={() => handleRemoveEmployee(employee)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>
+                  
+                  {availableEmployees.length > 0 && (
+                    <div className="flex items-center mt-4 space-x-2">
+                      <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select an employee to add" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableEmployees.map((emp: string) => (
+                            <SelectItem key={emp} value={emp}>{emp}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        size="sm" 
+                        onClick={handleAddEmployee} 
+                        disabled={!selectedEmployee}
+                        className="flex-shrink-0"
+                      >
+                        <UserPlus className="h-4 w-4 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="pt-2">
