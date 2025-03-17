@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import React, { useState } from 'react';
+import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 
@@ -9,14 +9,97 @@ interface ScheduleCalendarProps {
   selectedShifts: any[];
 }
 
+interface ScheduleItem {
+  id: string;
+  title: string;
+  employees: string[];
+  dayIndex: number;
+  color: string;
+}
+
 const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalendarProps) => {
   const hasEnoughData = selectedEmployees.length > 0 && selectedShifts.length > 0;
   
+  // Sample schedule items based on the mock data
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([
+    { 
+      id: '1', 
+      title: 'Morning Shift', 
+      employees: ['Alice', 'Bob'], 
+      dayIndex: 1, 
+      color: 'blue' 
+    },
+    { 
+      id: '2', 
+      title: 'Afternoon Shift', 
+      employees: ['Carol', 'David'], 
+      dayIndex: 2, 
+      color: 'green' 
+    },
+    { 
+      id: '3', 
+      title: 'Night Shift', 
+      employees: ['Eve'], 
+      dayIndex: 2, 
+      color: 'purple' 
+    },
+    { 
+      id: '4', 
+      title: 'Special Event', 
+      employees: ['Frank', 'Grace', 'Henry'], 
+      dayIndex: 4, 
+      color: 'amber' 
+    },
+  ]);
+  
+  // Drag and drop state
+  const [draggedItem, setDraggedItem] = useState<ScheduleItem | null>(null);
+
   const handleSolveSchedule = () => {
     // This would call an API to use Timefold Solver in a real application
     console.log('Solving schedule using Timefold...');
     console.log('Selected employees:', selectedEmployees);
     console.log('Selected shifts:', selectedShifts);
+    
+    // For demo purposes, we could add some random new shifts to the schedule
+    const newSchedule = [...scheduleItems];
+    const randomDay = Math.floor(Math.random() * 7);
+    const randomShift = selectedShifts[Math.floor(Math.random() * selectedShifts.length)];
+    const randomEmployees = selectedEmployees
+      .slice(0, Math.floor(Math.random() * selectedEmployees.length) + 1)
+      .map((emp: any) => emp.name || 'Employee');
+    
+    if (randomShift) {
+      newSchedule.push({
+        id: Date.now().toString(),
+        title: randomShift.name || 'New Shift',
+        employees: randomEmployees,
+        dayIndex: randomDay,
+        color: ['blue', 'green', 'purple', 'amber', 'rose'][Math.floor(Math.random() * 5)]
+      });
+      
+      setScheduleItems(newSchedule);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (item: ScheduleItem) => {
+    setDraggedItem(item);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, dayIndex: number) => {
+    e.preventDefault();
+    if (draggedItem) {
+      const updatedItems = scheduleItems.map(item => 
+        item.id === draggedItem.id ? {...item, dayIndex} : item
+      );
+      setScheduleItems(updatedItems);
+      setDraggedItem(null);
+    }
   };
 
   if (!hasEnoughData) {
@@ -81,6 +164,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
 
       <div className="flex-1 glass-card overflow-hidden p-6">
         <div className="text-lg font-medium mb-4">Weekly Schedule</div>
+        <p className="text-xs text-muted-foreground mb-4">Drag and drop shifts to reschedule them</p>
         
         <div className="grid grid-cols-7 gap-2 mb-4">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -99,38 +183,30 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
               <div 
                 key={i} 
                 className="border border-border/40 rounded-md p-2 h-full overflow-y-auto bg-white/50"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, i)}
               >
                 <div className="text-xs text-muted-foreground mb-2">
                   {format(date, 'MMM d')}
                 </div>
                 
-                {/* In a real app, we would map over assigned shifts for this day */}
-                {i === 1 && (
-                  <div className="text-xs p-1 bg-blue-100 rounded mb-1 border-l-2 border-blue-500">
-                    <div className="font-medium">Morning Shift</div>
-                    <div className="text-muted-foreground">Alice, Bob</div>
-                  </div>
-                )}
-                
-                {i === 2 && (
-                  <>
-                    <div className="text-xs p-1 bg-green-100 rounded mb-1 border-l-2 border-green-500">
-                      <div className="font-medium">Afternoon Shift</div>
-                      <div className="text-muted-foreground">Carol, David</div>
+                {scheduleItems
+                  .filter(item => item.dayIndex === i)
+                  .map(item => (
+                    <div 
+                      key={item.id}
+                      draggable
+                      onDragStart={() => handleDragStart(item)}
+                      className={`text-xs p-1 bg-${item.color}-100 rounded mb-1 border-l-2 border-${item.color}-500 cursor-move hover:brightness-95 active:brightness-90 transition-all`}
+                    >
+                      <div className="font-medium flex items-center justify-between">
+                        {item.title}
+                        <GripVertical className="h-3 w-3 text-muted-foreground" />
+                      </div>
+                      <div className="text-muted-foreground">{item.employees.join(', ')}</div>
                     </div>
-                    <div className="text-xs p-1 bg-purple-100 rounded mb-1 border-l-2 border-purple-500">
-                      <div className="font-medium">Night Shift</div>
-                      <div className="text-muted-foreground">Eve</div>
-                    </div>
-                  </>
-                )}
-                
-                {i === 4 && (
-                  <div className="text-xs p-1 bg-amber-100 rounded mb-1 border-l-2 border-amber-500">
-                    <div className="font-medium">Special Event</div>
-                    <div className="text-muted-foreground">Frank, Grace, Henry</div>
-                  </div>
-                )}
+                  ))
+                }
               </div>
             );
           })}
