@@ -1,8 +1,10 @@
 
 import React, { useState } from 'react';
-import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical } from 'lucide-react';
+import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 
 interface ScheduleCalendarProps {
   selectedEmployees: any[];
@@ -54,6 +56,9 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   
   // Drag and drop state
   const [draggedItem, setDraggedItem] = useState<ScheduleItem | null>(null);
+  // Dialog state for shift details
+  const [selectedShift, setSelectedShift] = useState<ScheduleItem | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const handleSolveSchedule = () => {
     // This would call an API to use Timefold Solver in a real application
@@ -100,6 +105,12 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       setScheduleItems(updatedItems);
       setDraggedItem(null);
     }
+  };
+
+  // Handler for shift click to show details
+  const handleShiftClick = (shift: ScheduleItem) => {
+    setSelectedShift(shift);
+    setDialogOpen(true);
   };
 
   if (!hasEnoughData) {
@@ -164,7 +175,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
 
       <div className="flex-1 glass-card overflow-hidden p-6">
         <div className="text-lg font-medium mb-4">Weekly Schedule</div>
-        <p className="text-xs text-muted-foreground mb-4">Drag and drop shifts to reschedule them</p>
+        <p className="text-xs text-muted-foreground mb-4">Drag and drop shifts to reschedule them or click for details</p>
         
         <div className="grid grid-cols-7 gap-2 mb-4">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -197,11 +208,15 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                       key={item.id}
                       draggable
                       onDragStart={() => handleDragStart(item)}
-                      className={`text-xs p-1 bg-${item.color}-100 rounded mb-1 border-l-2 border-${item.color}-500 cursor-move hover:brightness-95 active:brightness-90 transition-all`}
+                      onClick={() => handleShiftClick(item)}
+                      className={`text-xs p-1 bg-${item.color}-100 rounded mb-1 border-l-2 border-${item.color}-500 cursor-pointer hover:brightness-95 active:brightness-90 transition-all group`}
                     >
                       <div className="font-medium flex items-center justify-between">
                         {item.title}
-                        <GripVertical className="h-3 w-3 text-muted-foreground" />
+                        <div className="flex items-center">
+                          <Info className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-1" />
+                          <GripVertical className="h-3 w-3 text-muted-foreground" />
+                        </div>
                       </div>
                       <div className="text-muted-foreground">{item.employees.join(', ')}</div>
                     </div>
@@ -216,6 +231,58 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
           In a real application, this would be powered by FullCalendar.js with interactive features.
         </div>
       </div>
+
+      {/* Shift Details Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedShift?.title}
+              <Badge className={`bg-${selectedShift?.color}-500`}>Shift Details</Badge>
+            </DialogTitle>
+            <DialogDescription>
+              Information about this scheduled shift and assigned employees.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {selectedShift && (
+              <>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Shift Information</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="text-muted-foreground">Day:</div>
+                    <div>
+                      {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][selectedShift.dayIndex]}
+                    </div>
+                    <div className="text-muted-foreground">ID:</div>
+                    <div>{selectedShift.id}</div>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Assigned Employees ({selectedShift.employees.length})</h4>
+                  <div className="space-y-2">
+                    {selectedShift.employees.map((employee, idx) => (
+                      <div key={idx} className="flex items-center p-2 rounded-md bg-secondary/20">
+                        <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs mr-2">
+                          {employee.charAt(0)}
+                        </div>
+                        <div>{employee}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="pt-2">
+                  <p className="text-xs text-muted-foreground">
+                    In a real application, this would show detailed information from the employee and shift databases.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
