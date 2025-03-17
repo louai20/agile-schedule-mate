@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { CalendarPlus, AlertCircle, CheckCircle } from 'lucide-react';
+import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 
@@ -40,6 +40,15 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
               </div>
             )}
           </div>
+          <div className="mt-6">
+            <Button 
+              variant="outline"
+              onClick={() => document.getElementById('shifts-tab')?.click()}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back to Shifts
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -55,7 +64,15 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
         </p>
       </div>
 
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-between mb-4">
+        <Button 
+          variant="outline"
+          onClick={() => document.getElementById('shifts-tab')?.click()}
+          className="gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Shifts
+        </Button>
+
         <Button onClick={handleSolveSchedule} className="flex items-center gap-1">
           <CalendarPlus className="h-4 w-4" />
           Generate Optimal Schedule

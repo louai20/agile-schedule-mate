@@ -26,6 +26,7 @@ const Navigation = ({ activeTab, setActiveTab }: NavigationProps) => {
         <div className="flex space-x-1 lg:space-x-2">
           {navItems.map((item) => (
             <button
+              id={`${item.id}-tab`}
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={cn(

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Clock, Calendar, MapPin, Users, Plus, AlertCircle, X } from 'lucide-react';
+import { Clock, Calendar, MapPin, Users, Plus, AlertCircle, X, ArrowRight, ArrowLeft } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -323,6 +323,25 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
           ))}
         </div>
       </ScrollArea>
+
+      <div className="mt-4 flex justify-between">
+        <Button 
+          variant="outline"
+          onClick={() => document.getElementById('employees-tab')?.click()}
+          className="gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Employees
+        </Button>
+        
+        {selectedShifts.length > 0 && (
+          <Button 
+            onClick={() => document.getElementById('schedule-tab')?.click()}
+            className="gap-2"
+          >
+            Go to Schedule <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 };

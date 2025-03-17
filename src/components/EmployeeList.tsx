@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Search, Check, X, User, Briefcase, Star, PlusCircle } from 'lucide-react';
+import { Search, Check, X, User, Briefcase, Star, PlusCircle, ArrowRight } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -235,6 +235,17 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
           ))}
         </div>
       </ScrollArea>
+
+      {selectedEmployees.length > 0 && (
+        <div className="mt-4 flex justify-end">
+          <Button 
+            onClick={() => document.getElementById('shifts-tab')?.click()}
+            className="gap-2"
+          >
+            Continue to Shifts <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
