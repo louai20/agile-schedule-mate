@@ -6,12 +6,14 @@ import ShiftManager from '@/components/ShiftManager';
 import ScheduleCalendar from '@/components/ScheduleCalendar';
 import { ShiftType } from '@/utils/shiftTypes';
 
-// Define the employee interface
+// Update Employee interface to match the one in EmployeeList
 interface Employee {
-  id: string;
+  id: number;
   name: string;
-  department?: string;
-  position?: string;
+  role: string;
+  skills: string[];
+  availability: string;
+  workPercentage: number;
   preferredShiftTypes?: ShiftType[];
 }
 
