@@ -10,17 +10,18 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
+import { ShiftType, getShiftTypeDisplayName, SHIFT_TYPES } from '@/utils/shiftTypes';
 
-// Mock employee data with work percentage
+// Mock employee data with work percentage and preferred shift types
 const MOCK_EMPLOYEES = [
-  { id: 1, name: 'Alice Johnson', role: 'Frontend Developer', skills: ['React', 'TypeScript', 'CSS'], availability: 'Full-time', workPercentage: 85 },
-  { id: 2, name: 'Bob Smith', role: 'Backend Developer', skills: ['Node.js', 'Python', 'SQL'], availability: 'Part-time', workPercentage: 45 },
-  { id: 3, name: 'Carol Davis', role: 'UX Designer', skills: ['Figma', 'Adobe XD', 'Sketch'], availability: 'Full-time', workPercentage: 90 },
-  { id: 4, name: 'David Wilson', role: 'Project Manager', skills: ['Agile', 'Scrum', 'Jira'], availability: 'Full-time', workPercentage: 78 },
-  { id: 5, name: 'Eve Brown', role: 'DevOps Engineer', skills: ['Docker', 'Kubernetes', 'AWS'], availability: 'Contract', workPercentage: 60 },
-  { id: 6, name: 'Frank Taylor', role: 'QA Engineer', skills: ['Testing', 'Selenium', 'Cypress'], availability: 'Full-time', workPercentage: 88 },
-  { id: 7, name: 'Grace Lee', role: 'Data Scientist', skills: ['Python', 'R', 'Machine Learning'], availability: 'Part-time', workPercentage: 50 },
-  { id: 8, name: 'Henry Martin', role: 'Mobile Developer', skills: ['React Native', 'Swift', 'Kotlin'], availability: 'Full-time', workPercentage: 72 },
+  { id: 1, name: 'Alice Johnson', role: 'Frontend Developer', skills: ['React', 'TypeScript', 'CSS'], availability: 'Full-time', workPercentage: 85, preferredShiftTypes: ['MORNING', 'AFTERNOON'] as ShiftType[] },
+  { id: 2, name: 'Bob Smith', role: 'Backend Developer', skills: ['Node.js', 'Python', 'SQL'], availability: 'Part-time', workPercentage: 45, preferredShiftTypes: ['EVENING'] as ShiftType[] },
+  { id: 3, name: 'Carol Davis', role: 'UX Designer', skills: ['Figma', 'Adobe XD', 'Sketch'], availability: 'Full-time', workPercentage: 90, preferredShiftTypes: ['MORNING_AFTERNOON'] as ShiftType[] },
+  { id: 4, name: 'David Wilson', role: 'Project Manager', skills: ['Agile', 'Scrum', 'Jira'], availability: 'Full-time', workPercentage: 78, preferredShiftTypes: ['MORNING', 'AFTERNOON_EVENING'] as ShiftType[] },
+  { id: 5, name: 'Eve Brown', role: 'DevOps Engineer', skills: ['Docker', 'Kubernetes', 'AWS'], availability: 'Contract', workPercentage: 60, preferredShiftTypes: ['EVENING_NIGHT'] as ShiftType[] },
+  { id: 6, name: 'Frank Taylor', role: 'QA Engineer', skills: ['Testing', 'Selenium', 'Cypress'], availability: 'Full-time', workPercentage: 88, preferredShiftTypes: ['MORNING', 'AFTERNOON'] as ShiftType[] },
+  { id: 7, name: 'Grace Lee', role: 'Data Scientist', skills: ['Python', 'R', 'Machine Learning'], availability: 'Part-time', workPercentage: 50, preferredShiftTypes: ['NIGHT'] as ShiftType[] },
+  { id: 8, name: 'Henry Martin', role: 'Mobile Developer', skills: ['React Native', 'Swift', 'Kotlin'], availability: 'Full-time', workPercentage: 72, preferredShiftTypes: ['LONG_SHIFT'] as ShiftType[] },
 ];
 
 interface Employee {
@@ -30,6 +31,7 @@ interface Employee {
   skills: string[];
   availability: string;
   workPercentage: number;
+  preferredShiftTypes?: ShiftType[];
 }
 
 interface EmployeeListProps {
@@ -45,6 +47,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
   const [newEmployeeSkills, setNewEmployeeSkills] = useState('');
   const [newEmployeeAvailability, setNewEmployeeAvailability] = useState('Full-time');
   const [newEmployeeWorkPercentage, setNewEmployeeWorkPercentage] = useState(100);
+  const [newEmployeeShiftTypes, setNewEmployeeShiftTypes] = useState<ShiftType[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const filteredEmployees = employees.filter((employee) => {
@@ -73,16 +76,34 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     });
   };
 
+  const handleToggleShiftType = (shiftType: ShiftType) => {
+    setNewEmployeeShiftTypes((prev) => {
+      if (prev.includes(shiftType)) {
+        return prev.filter(type => type !== shiftType);
+      } else {
+        return [...prev, shiftType];
+      }
+    });
+  };
+
   const handleAddEmployee = () => {
+    // Validation: ensure at least one shift type is selected
+    if (newEmployeeShiftTypes.length === 0) {
+      alert("Please select at least one preferred shift type");
+      return;
+    }
+
     // In a real app, this would call an API to create a new employee
-    console.log('New employee would be created here');
+    console.log('New employee would be created here with shift preferences:', newEmployeeShiftTypes);
     setIsDialogOpen(false);
+    
     // Reset form
     setNewEmployeeName('');
     setNewEmployeeRole('');
     setNewEmployeeSkills('');
     setNewEmployeeAvailability('Full-time');
     setNewEmployeeWorkPercentage(100);
+    setNewEmployeeShiftTypes([]);
   };
 
   // Function to get color based on work percentage
@@ -102,7 +123,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     <div className="h-full flex flex-col animate-fade-in">
       <div className="flex justify-between items-center mb-4">
         <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4 z-10" />
           <Input
             placeholder="Search employees by name, role, or skills..."
             value={searchQuery}
@@ -176,6 +197,33 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                   onChange={(e) => setNewEmployeeWorkPercentage(parseInt(e.target.value))}
                   className="w-full"
                 />
+              </div>
+
+              {/* Preferred Shift Types Section */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Preferred Shift Types (select at least one)
+                </label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {(Object.keys(SHIFT_TYPES) as ShiftType[]).map((shiftType) => (
+                    <div key={shiftType} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`shift-${shiftType}`}
+                        checked={newEmployeeShiftTypes.includes(shiftType)}
+                        onCheckedChange={() => handleToggleShiftType(shiftType)}
+                      />
+                      <label 
+                        htmlFor={`shift-${shiftType}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {getShiftTypeDisplayName(shiftType)}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                {newEmployeeShiftTypes.length === 0 && (
+                  <p className="text-xs text-red-500">Please select at least one shift type</p>
+                )}
               </div>
             </div>
             <div className="flex justify-end">
@@ -276,6 +324,21 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                   <span className={`text-xs font-medium ${getWorkPercentageColor(employee.workPercentage)}`}>
                     {employee.workPercentage}%
                   </span>
+                </div>
+              </div>
+              
+              {/* Preferred Shift Types Section */}
+              <div className="mt-3">
+                <div className="flex items-center mb-1">
+                  <Clock className="h-3 w-3 text-muted-foreground mr-1" />
+                  <span className="text-xs text-muted-foreground">Preferred Shifts</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {employee.preferredShiftTypes?.map(shiftType => (
+                    <Badge key={shiftType} variant="secondary" className="text-xs">
+                      {getShiftTypeDisplayName(shiftType)}
+                    </Badge>
+                  ))}
                 </div>
               </div>
               
