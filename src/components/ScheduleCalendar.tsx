@@ -34,6 +34,8 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   
   // Schedule items state
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
+  const [pendingSchedule, setPendingSchedule] = useState<ScheduleItem[]>([]);
+  const [generatedSchedule, setGeneratedSchedule] = useState(false);
   
   // Filter state
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
@@ -55,37 +57,6 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     setCalendarDays(days);
   }, [currentMonth]);
   
-  // Initialize with some sample data
-  useEffect(() => {
-    // Only set sample data if no data exists yet
-    if (scheduleItems.length === 0) {
-      const sampleItems: ScheduleItem[] = [
-        { 
-          id: '1', 
-          title: 'Morning Shift', 
-          employees: ['Alice'], 
-          date: addDays(new Date(), 2), 
-          color: 'blue' 
-        },
-        { 
-          id: '2', 
-          title: 'Afternoon Shift', 
-          employees: ['Bob'], 
-          date: addDays(new Date(), 3), 
-          color: 'green' 
-        },
-        { 
-          id: '3', 
-          title: 'Night Shift', 
-          employees: ['Charlie'], 
-          date: new Date(), 
-          color: 'purple' 
-        },
-      ];
-      setScheduleItems(sampleItems);
-    }
-  }, []);
-
   // Navigate between months
   const goToPreviousMonth = () => {
     setCurrentMonth(prevMonth => subMonths(prevMonth, 1));
@@ -100,6 +71,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     if (!hasEnoughData) return;
     
     setClickedDate(day);
+    setEmployeeToAdd(''); // Reset employee selection
     setAddShiftDialogOpen(true);
   };
 
@@ -187,6 +159,10 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       setScheduleItems([...scheduleItems, newShift]);
       setAddShiftDialogOpen(false);
       toast.success(`New shift added on ${format(clickedDate, 'MMMM d, yyyy')}`);
+    } else {
+      if (!employee) {
+        toast.error("Please select an employee for this shift");
+      }
     }
   };
 
@@ -196,8 +172,8 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     console.log('Selected employees:', selectedEmployees);
     console.log('Selected shifts:', selectedShifts);
     
-    // For demo purposes, we add some random shifts
-    const newSchedule = [...scheduleItems];
+    // For demo purposes, prepare a random schedule
+    const newSchedule: ScheduleItem[] = [];
     
     // Add a few random shifts for the selected employees
     selectedEmployees.forEach((employee: any) => {
@@ -220,8 +196,25 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       }
     });
     
-    setScheduleItems(newSchedule);
-    toast.success('Schedule generated successfully!');
+    // Store the generated schedule but don't apply it yet
+    setPendingSchedule(newSchedule);
+    setGeneratedSchedule(true);
+    toast.success('Schedule generated! Review and apply when ready.');
+  };
+
+  // Apply the generated schedule
+  const handleApplySchedule = () => {
+    setScheduleItems([...scheduleItems, ...pendingSchedule]);
+    setPendingSchedule([]);
+    setGeneratedSchedule(false);
+    toast.success('Schedule applied successfully!');
+  };
+
+  // Clear the pending schedule
+  const handleClearPendingSchedule = () => {
+    setPendingSchedule([]);
+    setGeneratedSchedule(false);
+    toast.info('Generated schedule discarded');
   };
 
   // Get shifts for a specific day
@@ -253,6 +246,13 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     if (percentage <= 30) return 'bg-green-500';
     if (percentage <= 70) return 'bg-amber-500';
     return 'bg-red-500';
+  };
+
+  // Get pending shifts for an employee
+  const getPendingShiftsForEmployee = (employeeName: string) => {
+    return pendingSchedule.filter(item => 
+      item.employees.includes(employeeName)
+    );
   };
 
   // Available employees for shift assignment
@@ -336,10 +336,21 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button onClick={handleSolveSchedule} className="gap-2">
-            <CalendarPlus className="h-4 w-4" />
-            Generate Optimal Schedule
-          </Button>
+          {generatedSchedule ? (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleClearPendingSchedule}>
+                Discard Generated Schedule
+              </Button>
+              <Button onClick={handleApplySchedule} className="gap-2">
+                Apply Generated Schedule
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={handleSolveSchedule} className="gap-2">
+              <CalendarPlus className="h-4 w-4" />
+              Generate Optimal Schedule
+            </Button>
+          )}
         </div>
       </div>
 
@@ -354,6 +365,8 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
             <div className="space-y-3 pr-4">
               {selectedEmployees.map((employee: any) => {
                 const workload = getEmployeeWorkload(employee.name);
+                const pendingShifts = getPendingShiftsForEmployee(employee.name);
+                
                 return (
                   <div key={employee.name} className="bg-white/50 rounded-md p-3 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
@@ -365,6 +378,28 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                       className="h-2" 
                       indicatorClassName={getWorkloadColor(workload)}
                     />
+                    
+                    {/* Show pending shifts for this employee if any */}
+                    {pendingShifts.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="text-xs font-medium text-muted-foreground mb-2">
+                          Pending Shifts ({pendingShifts.length})
+                        </div>
+                        <div className="space-y-1">
+                          {pendingShifts.map((shift, idx) => (
+                            <div 
+                              key={idx} 
+                              className={`text-xs p-1 bg-${shift.color}-100 rounded border-l-2 border-${shift.color}-500`}
+                            >
+                              <div className="font-medium">{shift.title}</div>
+                              <div className="text-muted-foreground">
+                                {format(shift.date, 'MMM d')}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -569,13 +604,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Select a Shift Type</label>
-              <Select onValueChange={(value) => {
-                // Find the selected shift and add it
-                const shift = selectedShifts.find((s: any) => s.title === value);
-                if (shift && clickedDate) {
-                  handleAddShift(shift.title, selectedEmployees[0]?.name || 'Employee');
-                }
-              }}>
+              <Select>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a shift type" />
                 </SelectTrigger>
@@ -590,10 +619,8 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium">Assign to Employee</label>
-              <Select onValueChange={(value) => {
-                setEmployeeToAdd(value);
-              }}>
+              <label className="text-sm font-medium">Assign to Employee *</label>
+              <Select onValueChange={setEmployeeToAdd}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select an employee" />
                 </SelectTrigger>
@@ -605,17 +632,25 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                * Required to add a shift
+              </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddShiftDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => {
-              if (employeeToAdd && selectedShifts.length > 0) {
-                handleAddShift(selectedShifts[0].title, employeeToAdd);
-              }
-            }} disabled={!employeeToAdd}>
+            <Button 
+              onClick={() => {
+                if (employeeToAdd && selectedShifts.length > 0) {
+                  handleAddShift(selectedShifts[0].title, employeeToAdd);
+                } else {
+                  toast.error("Please select both a shift type and an employee");
+                }
+              }} 
+              disabled={!employeeToAdd}
+            >
               Add Shift
             </Button>
           </DialogFooter>
