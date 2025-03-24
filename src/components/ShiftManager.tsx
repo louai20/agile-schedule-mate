@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Clock, Calendar, MapPin, Users, Plus, AlertCircle, X, ArrowRight, ArrowLeft, Search } from 'lucide-react';
+import { Clock, Calendar as CalendarIcon, MapPin, Users, Plus, AlertCircle, X, ArrowRight, ArrowLeft, Search } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +8,11 @@ import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { FormItem, FormLabel } from '@/components/ui/form';
 
-// Mock shift data
 const MOCK_SHIFTS = [
   {
     id: 1,
@@ -86,12 +88,14 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
-  // New shift form state
   const [newShiftTitle, setNewShiftTitle] = useState('');
   const [newShiftDepartment, setNewShiftDepartment] = useState('');
   const [newShiftLocation, setNewShiftLocation] = useState('');
   const [newShiftRequiredEmployees, setNewShiftRequiredEmployees] = useState(1);
   const [newShiftPriority, setNewShiftPriority] = useState('Medium');
+  const [newShiftDate, setNewShiftDate] = useState<Date | undefined>(new Date());
+  const [newShiftStartTime, setNewShiftStartTime] = useState('09:00');
+  const [newShiftEndTime, setNewShiftEndTime] = useState('17:00');
   
   const filteredShifts = shifts.filter((shift) => {
     const query = searchQuery.toLowerCase();
@@ -113,23 +117,23 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
         newSelection = [...prev, shift];
       }
       
-      // Update parent component
       onShiftsSelected(newSelection);
       return newSelection;
     });
   };
 
   const handleAddShift = () => {
-    // In a real app, this would call an API to create a new shift
-    console.log('New shift would be created here');
+    console.log('New shift would be created here with date:', newShiftDate);
     setIsDialogOpen(false);
     
-    // Reset form
     setNewShiftTitle('');
     setNewShiftDepartment('');
     setNewShiftLocation('');
     setNewShiftRequiredEmployees(1);
     setNewShiftPriority('Medium');
+    setNewShiftDate(new Date());
+    setNewShiftStartTime('09:00');
+    setNewShiftEndTime('17:00');
   };
 
   const getPriorityColor = (priority: string) => {
@@ -212,32 +216,65 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
                     placeholder="Enter location"
                   />
                 </div>
+                
+                <div className="space-y-2">
+                  <FormLabel htmlFor="date">Shift Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !newShiftDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {newShiftDate ? format(newShiftDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={newShiftDate}
+                        onSelect={setNewShiftDate}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label htmlFor="employees" className="text-sm font-medium">Required Employees</label>
+                    <label htmlFor="startTime" className="text-sm font-medium">Start Time</label>
                     <Input
-                      id="employees"
-                      type="number"
-                      min="1"
-                      value={newShiftRequiredEmployees}
-                      onChange={(e) => setNewShiftRequiredEmployees(parseInt(e.target.value))}
+                      id="startTime"
+                      type="time"
+                      value={newShiftStartTime}
+                      onChange={(e) => setNewShiftStartTime(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="priority" className="text-sm font-medium">Priority</label>
-                    <select
-                      id="priority"
-                      value={newShiftPriority}
-                      onChange={(e) => setNewShiftPriority(e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="High">High</option>
-                      <option value="Medium">Medium</option>
-                      <option value="Low">Low</option>
-                    </select>
+                    <label htmlFor="endTime" className="text-sm font-medium">End Time</label>
+                    <Input
+                      id="endTime"
+                      type="time"
+                      value={newShiftEndTime}
+                      onChange={(e) => setNewShiftEndTime(e.target.value)}
+                    />
                   </div>
                 </div>
-                {/* Date/time pickers would be added here in a real application */}
+                
+                <div className="space-y-2">
+                  <label htmlFor="employees" className="text-sm font-medium">Required Employees</label>
+                  <Input
+                    id="employees"
+                    type="number"
+                    min="1"
+                    value={newShiftRequiredEmployees}
+                    onChange={(e) => setNewShiftRequiredEmployees(parseInt(e.target.value))}
+                  />
+                </div>
               </div>
               <div className="flex justify-end">
                 <Button onClick={handleAddShift}>Add Shift</Button>
