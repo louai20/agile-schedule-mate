@@ -4,13 +4,23 @@ import Navigation from '@/components/Navigation';
 import EmployeeList from '@/components/EmployeeList';
 import ShiftManager from '@/components/ShiftManager';
 import ScheduleCalendar from '@/components/ScheduleCalendar';
+import { ShiftType } from '@/utils/shiftTypes';
+
+// Define the employee interface
+interface Employee {
+  id: string;
+  name: string;
+  department?: string;
+  position?: string;
+  preferredShiftTypes?: ShiftType[];
+}
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('employees');
-  const [selectedEmployees, setSelectedEmployees] = useState<any[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<Employee[]>([]);
   const [selectedShifts, setSelectedShifts] = useState<any[]>([]);
 
-  const handleEmployeesSelected = (employees: any[]) => {
+  const handleEmployeesSelected = (employees: Employee[]) => {
     setSelectedEmployees(employees);
   };
 

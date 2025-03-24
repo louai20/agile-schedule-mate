@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Clock, Calendar, MapPin, Users, Plus, AlertCircle, X, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Clock, Calendar, MapPin, Users, Plus, AlertCircle, X, ArrowRight, ArrowLeft, Search } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -162,7 +162,9 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
 
         <div className="flex items-center justify-between">
           <div className="relative w-full max-w-md">
-            <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4">
+              <Search className="h-4 w-4" />
+            </div>
             <Input
               placeholder="Search shifts..."
               value={searchQuery}

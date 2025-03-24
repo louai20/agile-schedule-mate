@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info, Trash2, UserPlus, Users, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info, Trash2, UserPlus, Users, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isSameDay } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isSameDay, parseISO, setHours, setMinutes } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { SHIFT_TYPES, ShiftType, getShiftTypeColor, getDefaultShiftHours, getShiftTypeDisplayName } from '@/utils/shiftTypes';
 
 interface ScheduleCalendarProps {
   selectedEmployees: any[];
@@ -23,6 +25,9 @@ interface ScheduleItem {
   employees: string[];
   date: Date;
   color: string;
+  shiftType: ShiftType;
+  startTime: string;
+  endTime: string;
 }
 
 const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalendarProps) => {
@@ -49,6 +54,11 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   const [employeeToAdd, setEmployeeToAdd] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
+  // New shift state
+  const [selectedShiftType, setSelectedShiftType] = useState<ShiftType>('MORNING');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('17:00');
+  
   // Initialize calendar days
   useEffect(() => {
     const start = startOfMonth(currentMonth);
@@ -56,6 +66,15 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     const days = eachDayOfInterval({ start, end });
     setCalendarDays(days);
   }, [currentMonth]);
+  
+  // Update time based on shift type selection
+  useEffect(() => {
+    if (selectedShiftType) {
+      const defaultHours = getDefaultShiftHours(selectedShiftType);
+      setStartTime(defaultHours.start);
+      setEndTime(defaultHours.end);
+    }
+  }, [selectedShiftType]);
   
   // Navigate between months
   const goToPreviousMonth = () => {
@@ -72,6 +91,10 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     
     setClickedDate(day);
     setEmployeeToAdd(''); // Reset employee selection
+    setSelectedShiftType('MORNING'); // Default shift type
+    const defaultHours = getDefaultShiftHours('MORNING');
+    setStartTime(defaultHours.start);
+    setEndTime(defaultHours.end);
     setAddShiftDialogOpen(true);
   };
 
@@ -146,21 +169,24 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   };
 
   // Add a new shift
-  const handleAddShift = (shiftTitle: string, employee: string) => {
-    if (clickedDate && shiftTitle && employee) {
+  const handleAddShift = () => {
+    if (clickedDate && selectedShiftType && employeeToAdd && startTime && endTime) {
       const newShift: ScheduleItem = {
         id: Date.now().toString(),
-        title: shiftTitle,
-        employees: [employee],
+        title: getShiftTypeDisplayName(selectedShiftType),
+        employees: [employeeToAdd],
         date: clickedDate,
-        color: ['blue', 'green', 'purple', 'amber', 'rose'][Math.floor(Math.random() * 5)]
+        color: getShiftTypeColor(selectedShiftType),
+        shiftType: selectedShiftType,
+        startTime,
+        endTime
       };
       
       setScheduleItems([...scheduleItems, newShift]);
       setAddShiftDialogOpen(false);
-      toast.success(`New shift added on ${format(clickedDate, 'MMMM d, yyyy')}`);
+      toast.success(`New ${newShift.title} added on ${format(clickedDate, 'MMMM d, yyyy')}`);
     } else {
-      if (!employee) {
+      if (!employeeToAdd) {
         toast.error("Please select an employee for this shift");
       }
     }
@@ -177,6 +203,9 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     
     // Add a few random shifts for the selected employees
     selectedEmployees.forEach((employee: any) => {
+      // Get employee's preferred shift types, or use all if none specified
+      const preferredShiftTypes = employee.preferredShiftTypes || Object.keys(SHIFT_TYPES) as ShiftType[];
+      
       // Add 2-3 shifts for each employee
       const shiftsToAdd = Math.floor(Math.random() * 3) + 2;
       
@@ -184,13 +213,20 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
         const randomDay = calendarDays[Math.floor(Math.random() * calendarDays.length)];
         const randomShift = selectedShifts[Math.floor(Math.random() * selectedShifts.length)];
         
+        // Choose a random shift type from employee's preferences
+        const randomShiftType = preferredShiftTypes[Math.floor(Math.random() * preferredShiftTypes.length)];
+        const defaultHours = getDefaultShiftHours(randomShiftType);
+        
         if (randomShift) {
           newSchedule.push({
             id: Date.now().toString() + i,
-            title: randomShift.title || 'New Shift',
+            title: getShiftTypeDisplayName(randomShiftType),
             employees: [employee.name || 'Employee'],
             date: randomDay,
-            color: ['blue', 'green', 'purple', 'amber', 'rose'][Math.floor(Math.random() * 5)]
+            color: getShiftTypeColor(randomShiftType),
+            shiftType: randomShiftType,
+            startTime: defaultHours.start,
+            endTime: defaultHours.end
           });
         }
       }
@@ -219,7 +255,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
 
   // Get shifts for a specific day
   const getShiftsForDay = (day: Date) => {
-    return scheduleItems.filter(item => {
+    return [...scheduleItems, ...(generatedSchedule ? pendingSchedule : [])].filter(item => {
       // Filter by employee if one is selected
       const matchesEmployee = selectedEmployee === 'all' || 
         item.employees.includes(selectedEmployee);
@@ -253,6 +289,18 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     return pendingSchedule.filter(item => 
       item.employees.includes(employeeName)
     );
+  };
+
+  // Get an employee's preferred shift types
+  const getEmployeePreferredShiftTypes = (employeeName: string) => {
+    const employee = selectedEmployees.find((emp: any) => emp.name === employeeName);
+    return employee?.preferredShiftTypes || [];
+  };
+
+  // Format shift types for display
+  const formatPreferredShiftTypes = (shiftTypes: ShiftType[]) => {
+    if (!shiftTypes || shiftTypes.length === 0) return 'Any shift type';
+    return shiftTypes.map(type => SHIFT_TYPES[type]).join(', ');
   };
 
   // Available employees for shift assignment
@@ -366,6 +414,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
               {selectedEmployees.map((employee: any) => {
                 const workload = getEmployeeWorkload(employee.name);
                 const pendingShifts = getPendingShiftsForEmployee(employee.name);
+                const preferredShiftTypes = employee.preferredShiftTypes || [];
                 
                 return (
                   <div key={employee.name} className="bg-white/50 rounded-md p-3 shadow-sm">
@@ -378,6 +427,20 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                       className="h-2" 
                       indicatorClassName={getWorkloadColor(workload)}
                     />
+                    
+                    {/* Show preferred shift types */}
+                    {preferredShiftTypes.length > 0 && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        <span className="font-medium">Preferred shifts:</span>{' '}
+                        <span className="text-xs">
+                          {preferredShiftTypes.map(type => (
+                            <Badge key={type} variant="secondary" className="mr-1 mb-1">
+                              {SHIFT_TYPES[type as ShiftType]}
+                            </Badge>
+                          ))}
+                        </span>
+                      </div>
+                    )}
                     
                     {/* Show pending shifts for this employee if any */}
                     {pendingShifts.length > 0 && (
@@ -393,7 +456,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                             >
                               <div className="font-medium">{shift.title}</div>
                               <div className="text-muted-foreground">
-                                {format(shift.date, 'MMM d')}
+                                {format(shift.date, 'MMM d')} • {shift.startTime}-{shift.endTime}
                               </div>
                             </div>
                           ))}
@@ -442,11 +505,14 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
           <div className="grid grid-cols-7 gap-2 h-[500px]">
             {calendarDays.map((day, i) => {
               const dayShifts = getShiftsForDay(day);
+              const isPendingDay = generatedSchedule && pendingSchedule.some(item => isSameDay(item.date, day));
               
               return (
                 <div 
                   key={i} 
-                  className="border border-border/40 rounded-md p-2 h-full overflow-y-auto bg-white/50 relative"
+                  className={`border border-border/40 rounded-md p-2 h-full overflow-y-auto ${
+                    isPendingDay ? 'bg-blue-50/70' : 'bg-white/50'
+                  } relative`}
                   onClick={() => handleDayClick(day)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, day)}
@@ -455,24 +521,34 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                     {format(day, 'MMM d')}
                   </div>
                   
-                  {dayShifts.map(item => (
-                    <div 
-                      key={item.id}
-                      draggable
-                      onDragStart={() => handleDragStart(item)}
-                      onClick={(e) => handleShiftClick(item, e)}
-                      className={`text-xs p-1 bg-${item.color}-100 rounded mb-1 border-l-2 border-${item.color}-500 cursor-pointer hover:brightness-95 active:brightness-90 transition-all group`}
-                    >
-                      <div className="font-medium flex items-center justify-between">
-                        {item.title}
-                        <div className="flex items-center">
-                          <Info className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-1" />
-                          <GripVertical className="h-3 w-3 text-muted-foreground" />
+                  {dayShifts.map(item => {
+                    const isPending = pendingSchedule.some(p => p.id === item.id);
+                    return (
+                      <div 
+                        key={item.id}
+                        draggable
+                        onDragStart={() => handleDragStart(item)}
+                        onClick={(e) => handleShiftClick(item, e)}
+                        className={`text-xs p-1 bg-${item.color}-100 rounded mb-1 border-l-2 border-${item.color}-500 cursor-pointer hover:brightness-95 active:brightness-90 transition-all group ${
+                          isPending ? 'border border-blue-500 bg-blue-50/50' : ''
+                        }`}
+                      >
+                        <div className="font-medium flex items-center justify-between">
+                          {item.title}
+                          <div className="flex items-center">
+                            {isPending && <Badge variant="outline" className="h-4 text-[10px] mr-1">Pending</Badge>}
+                            <Info className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-1" />
+                            <GripVertical className="h-3 w-3 text-muted-foreground" />
+                          </div>
                         </div>
+                        <div className="text-muted-foreground flex items-center">
+                          <Clock className="h-3 w-3 mr-1" />
+                          {item.startTime}-{item.endTime}
+                        </div>
+                        <div className="text-muted-foreground">{item.employees.join(', ')}</div>
                       </div>
-                      <div className="text-muted-foreground">{item.employees.join(', ')}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })}
@@ -506,6 +582,12 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                     <div>
                       {format(selectedShift.date, 'MMMM d, yyyy')}
                     </div>
+                    <div className="text-muted-foreground">Time:</div>
+                    <div>
+                      {selectedShift.startTime} - {selectedShift.endTime}
+                    </div>
+                    <div className="text-muted-foreground">Type:</div>
+                    <div>{selectedShift.title}</div>
                     <div className="text-muted-foreground">ID:</div>
                     <div>{selectedShift.id}</div>
                   </div>
@@ -540,24 +622,38 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                   </h4>
                   
                   <div className="space-y-2">
-                    {selectedShift.employees.map((employee, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-secondary/20">
-                        <div className="flex items-center">
-                          <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs mr-2">
-                            {employee.charAt(0)}
+                    {selectedShift.employees.map((employee, idx) => {
+                      const preferredShiftTypes = getEmployeePreferredShiftTypes(employee);
+                      return (
+                        <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-secondary/20">
+                          <div className="flex items-center">
+                            <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs mr-2">
+                              {employee.charAt(0)}
+                            </div>
+                            <div>
+                              <div>{employee}</div>
+                              {preferredShiftTypes.length > 0 && (
+                                <div className="text-xs text-muted-foreground">
+                                  Prefers: {preferredShiftTypes.map(type => (
+                                    <Badge key={type} variant="secondary" className="mr-1">
+                                      {SHIFT_TYPES[type as ShiftType]}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div>{employee}</div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="h-7 text-red-500 hover:text-red-700 hover:bg-red-100"
+                            onClick={() => handleRemoveEmployee(employee)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="h-7 text-red-500 hover:text-red-700 hover:bg-red-100"
-                          onClick={() => handleRemoveEmployee(employee)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   
                   {availableEmployees.length > 0 && (
@@ -603,19 +699,38 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Select a Shift Type</label>
-              <Select>
+              <label className="text-sm font-medium">Shift Type</label>
+              <Select value={selectedShiftType} onValueChange={(value) => setSelectedShiftType(value as ShiftType)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a shift type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {selectedShifts.map((shift: any) => (
-                    <SelectItem key={shift.id} value={shift.title}>
-                      {shift.title}
+                  {Object.entries(SHIFT_TYPES).map(([key, value]) => (
+                    <SelectItem key={key} value={key as ShiftType}>
+                      {value}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Start Time</label>
+                <Input 
+                  type="time" 
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">End Time</label>
+                <Input 
+                  type="time" 
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                />
+              </div>
             </div>
             
             <div className="space-y-2">
@@ -625,11 +740,23 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                   <SelectValue placeholder="Select an employee" />
                 </SelectTrigger>
                 <SelectContent>
-                  {selectedEmployees.map((emp: any) => (
-                    <SelectItem key={emp.id} value={emp.name}>
-                      {emp.name}
-                    </SelectItem>
-                  ))}
+                  {selectedEmployees.map((emp: any) => {
+                    const preferredShiftTypes = emp.preferredShiftTypes || [];
+                    const isPreferred = preferredShiftTypes.includes(selectedShiftType);
+                    
+                    return (
+                      <SelectItem key={emp.id} value={emp.name}>
+                        <div className="flex items-center">
+                          {emp.name}
+                          {isPreferred && (
+                            <Badge className="ml-2 bg-green-100 text-green-800 h-5 text-[10px]">
+                              Preferred
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
@@ -642,14 +769,8 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
               Cancel
             </Button>
             <Button 
-              onClick={() => {
-                if (employeeToAdd && selectedShifts.length > 0) {
-                  handleAddShift(selectedShifts[0].title, employeeToAdd);
-                } else {
-                  toast.error("Please select both a shift type and an employee");
-                }
-              }} 
-              disabled={!employeeToAdd}
+              onClick={handleAddShift} 
+              disabled={!employeeToAdd || !startTime || !endTime}
             >
               Add Shift
             </Button>
