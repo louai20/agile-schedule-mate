@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
-import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info, Trash2, UserPlus, Users, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info, Trash2, UserPlus, Users, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, Clock, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isSameDay, parseISO, setHours, setMinutes } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isSameDay, parseISO, setHours, setMinutes, startOfWeek, endOfWeek, addWeeks, isSameMonth } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { SHIFT_TYPES, ShiftType, getShiftTypeColor, getDefaultShiftHours, getShiftTypeDisplayName } from '@/utils/shiftTypes';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface ScheduleCalendarProps {
   selectedEmployees: any[];
@@ -32,10 +33,12 @@ interface ScheduleItem {
 
 const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalendarProps) => {
   const hasEnoughData = selectedEmployees.length > 0 && selectedShifts.length > 0;
+  const printRef = useRef<HTMLDivElement>(null);
   
   // Calendar state
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarDays, setCalendarDays] = useState<Date[]>([]);
+  const [calendarWeeks, setCalendarWeeks] = useState<Date[][]>([]);
   
   // Schedule items state
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
@@ -53,18 +56,36 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   const [clickedDate, setClickedDate] = useState<Date | null>(null);
   const [employeeToAdd, setEmployeeToAdd] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [employeeToPrint, setEmployeeToPrint] = useState<string>('');
   
   // New shift state
   const [selectedShiftType, setSelectedShiftType] = useState<ShiftType>('MORNING');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
   
-  // Initialize calendar days
+  // Initialize calendar days and weeks
   useEffect(() => {
+    // Get all days of the month
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
     const days = eachDayOfInterval({ start, end });
     setCalendarDays(days);
+    
+    // Generate 4 weeks starting from the first day of the month
+    // Make sure to include days from previous/next month to fill the week
+    const firstDayOfMonth = startOfMonth(currentMonth);
+    const startOfFirstWeek = startOfWeek(firstDayOfMonth);
+    
+    const weeks: Date[][] = [];
+    for (let i = 0; i < 4; i++) {
+      const weekStart = i === 0 ? startOfFirstWeek : addWeeks(startOfFirstWeek, i);
+      const weekEnd = endOfWeek(weekStart);
+      const week = eachDayOfInterval({ start: weekStart, end: weekEnd });
+      weeks.push(week);
+    }
+    
+    setCalendarWeeks(weeks);
   }, [currentMonth]);
   
   // Update time based on shift type selection
@@ -267,6 +288,13 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     });
   };
 
+  // Get shifts for a specific employee
+  const getShiftsForEmployee = (employeeName: string) => {
+    return [...scheduleItems, ...(generatedSchedule ? pendingSchedule : [])].filter(item => 
+      item.employees.includes(employeeName)
+    ).sort((a, b) => a.date.getTime() - b.date.getTime());
+  };
+
   // Calculate employee workload percentages
   const getEmployeeWorkload = (employeeName: string) => {
     const totalDays = calendarDays.length;
@@ -301,6 +329,28 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   const formatPreferredShiftTypes = (shiftTypes: ShiftType[]) => {
     if (!shiftTypes || shiftTypes.length === 0) return 'Any shift type';
     return shiftTypes.map(type => SHIFT_TYPES[type]).join(', ');
+  };
+
+  // Handle printing individual employee schedule
+  const handlePrintEmployeeSchedule = () => {
+    if (!employeeToPrint) {
+      toast.error("Please select an employee to print schedule");
+      return;
+    }
+    
+    setPrintDialogOpen(false);
+    
+    // Delay printing to ensure the dialog is closed
+    setTimeout(() => {
+      const printContent = document.getElementById('print-schedule-content');
+      if (printContent) {
+        const originalContents = document.body.innerHTML;
+        document.body.innerHTML = printContent.innerHTML;
+        window.print();
+        document.body.innerHTML = originalContents;
+        window.location.reload();
+      }
+    }, 300);
   };
 
   // Available employees for shift assignment
@@ -383,6 +433,15 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => setPrintDialogOpen(true)}
+          >
+            <Printer className="h-4 w-4" />
+            Print Schedule
+          </Button>
 
           {generatedSchedule ? (
             <div className="flex gap-2">
@@ -502,56 +561,62 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
             ))}
           </div>
           
-          <div className="grid grid-cols-7 gap-2 h-[500px]">
-            {calendarDays.map((day, i) => {
-              const dayShifts = getShiftsForDay(day);
-              const isPendingDay = generatedSchedule && pendingSchedule.some(item => isSameDay(item.date, day));
-              
-              return (
-                <div 
-                  key={i} 
-                  className={`border border-border/40 rounded-md p-2 h-full overflow-y-auto ${
-                    isPendingDay ? 'bg-blue-50/70' : 'bg-white/50'
-                  } relative`}
-                  onClick={() => handleDayClick(day)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, day)}
-                >
-                  <div className="text-xs text-muted-foreground mb-2 sticky top-0 bg-white/70 backdrop-blur-sm p-1 z-10 rounded-sm">
-                    {format(day, 'MMM d')}
-                  </div>
+          {/* 4-Week View */}
+          <div className="space-y-4">
+            {calendarWeeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="grid grid-cols-7 gap-2 h-[120px]">
+                {week.map((day, dayIndex) => {
+                  const dayShifts = getShiftsForDay(day);
+                  const isPendingDay = generatedSchedule && pendingSchedule.some(item => isSameDay(item.date, day));
+                  const isCurrentMonth = isSameMonth(day, currentMonth);
                   
-                  {dayShifts.map(item => {
-                    const isPending = pendingSchedule.some(p => p.id === item.id);
-                    return (
-                      <div 
-                        key={item.id}
-                        draggable
-                        onDragStart={() => handleDragStart(item)}
-                        onClick={(e) => handleShiftClick(item, e)}
-                        className={`text-xs p-1 bg-${item.color}-100 rounded mb-1 border-l-2 border-${item.color}-500 cursor-pointer hover:brightness-95 active:brightness-90 transition-all group ${
-                          isPending ? 'border border-blue-500 bg-blue-50/50' : ''
-                        }`}
-                      >
-                        <div className="font-medium flex items-center justify-between">
-                          {item.title}
-                          <div className="flex items-center">
-                            {isPending && <Badge variant="outline" className="h-4 text-[10px] mr-1">Pending</Badge>}
-                            <Info className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-1" />
-                            <GripVertical className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                        </div>
-                        <div className="text-muted-foreground flex items-center">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {item.startTime}-{item.endTime}
-                        </div>
-                        <div className="text-muted-foreground">{item.employees.join(', ')}</div>
+                  return (
+                    <div 
+                      key={dayIndex} 
+                      className={`border border-border/40 rounded-md p-2 h-full overflow-y-auto ${
+                        isPendingDay ? 'bg-blue-50/70' : 'bg-white/50'
+                      } ${!isCurrentMonth ? 'opacity-40' : ''} relative`}
+                      onClick={() => handleDayClick(day)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, day)}
+                    >
+                      <div className={`text-xs ${isCurrentMonth ? 'text-muted-foreground' : 'text-gray-400'} mb-2 sticky top-0 bg-white/70 backdrop-blur-sm p-1 z-10 rounded-sm`}>
+                        {format(day, 'MMM d')}
                       </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                      
+                      {dayShifts.map(item => {
+                        const isPending = pendingSchedule.some(p => p.id === item.id);
+                        return (
+                          <div 
+                            key={item.id}
+                            draggable
+                            onDragStart={() => handleDragStart(item)}
+                            onClick={(e) => handleShiftClick(item, e)}
+                            className={`text-xs p-1 bg-${item.color}-100 rounded mb-1 border-l-2 border-${item.color}-500 cursor-pointer hover:brightness-95 active:brightness-90 transition-all group ${
+                              isPending ? 'border border-blue-500 bg-blue-50/50' : ''
+                            }`}
+                          >
+                            <div className="font-medium flex items-center justify-between">
+                              {item.title}
+                              <div className="flex items-center">
+                                {isPending && <Badge variant="outline" className="h-4 text-[10px] mr-1">Pending</Badge>}
+                                <Info className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-1" />
+                                <GripVertical className="h-3 w-3 text-muted-foreground" />
+                              </div>
+                            </div>
+                            <div className="text-muted-foreground flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {item.startTime}-{item.endTime}
+                            </div>
+                            <div className="text-muted-foreground text-[10px] truncate">{item.employees.join(', ')}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
           
           <div className="mt-4 text-center text-sm text-muted-foreground">
@@ -773,6 +838,102 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
               disabled={!employeeToAdd || !startTime || !endTime}
             >
               Add Shift
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Schedule Dialog */}
+      <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Print Employee Schedule</DialogTitle>
+            <DialogDescription>
+              Select an employee to print their monthly schedule
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Employee</label>
+              <Select value={employeeToPrint} onValueChange={setEmployeeToPrint}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectedEmployees.map((emp: any) => (
+                    <SelectItem key={emp.id} value={emp.name}>
+                      {emp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {employeeToPrint && (
+              <div className="border rounded-md p-3 bg-gray-50">
+                <h3 className="text-sm font-medium mb-2">Preview</h3>
+                <div className="text-xs">
+                  <p><strong>Employee:</strong> {employeeToPrint}</p>
+                  <p><strong>Month:</strong> {format(currentMonth, 'MMMM yyyy')}</p>
+                  <p><strong>Total Shifts:</strong> {getShiftsForEmployee(employeeToPrint).length}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Hidden print content that will be used when printing */}
+            <div id="print-schedule-content" className="hidden">
+              <div className="p-8">
+                <div className="text-center mb-6">
+                  <h1 className="text-2xl font-bold">Employee Schedule</h1>
+                  <p className="text-lg">{format(currentMonth, 'MMMM yyyy')}</p>
+                  <div className="mt-2">
+                    <p className="text-lg font-medium">{employeeToPrint}</p>
+                  </div>
+                </div>
+                
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Shift</TableHead>
+                      <TableHead>Time</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {employeeToPrint && getShiftsForEmployee(employeeToPrint).map((shift) => (
+                      <TableRow key={shift.id}>
+                        <TableCell>{format(shift.date, 'EEEE, MMMM d, yyyy')}</TableCell>
+                        <TableCell>{shift.title}</TableCell>
+                        <TableCell>{shift.startTime} - {shift.endTime}</TableCell>
+                      </TableRow>
+                    ))}
+                    {employeeToPrint && getShiftsForEmployee(employeeToPrint).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center py-4">
+                          No shifts scheduled for this employee
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+                
+                <div className="mt-8 text-sm text-center">
+                  <p>Printed on {format(new Date(), 'MMMM d, yyyy')}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handlePrintEmployeeSchedule} 
+              disabled={!employeeToPrint}
+              className="gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Print Schedule
             </Button>
           </DialogFooter>
         </DialogContent>
