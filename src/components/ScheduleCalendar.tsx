@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info, Trash2, UserPlus, Users, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, Clock, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -627,16 +626,19 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
 
       {/* Shift Details Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent 
+          className="sm:max-w-md"
+          aria-describedby="shift-details-description"
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selectedShift?.title}
               <Badge className={`bg-${selectedShift?.color}-500`}>Shift Details</Badge>
             </DialogTitle>
-            <DialogDescription>
-              Information about this scheduled shift and assigned employees.
-            </DialogDescription>
           </DialogHeader>
+          <p id="shift-details-description" className="sr-only">
+            View and manage shift details including assigned employees, time, and location.
+          </p>
           <div className="space-y-4 py-4">
             {selectedShift && (
               <>
@@ -753,7 +755,10 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
 
       {/* Add Shift Dialog */}
       <Dialog open={addShiftDialogOpen} onOpenChange={setAddShiftDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent 
+          className="sm:max-w-md"
+          aria-describedby="add-shift-description"
+        >
           <DialogHeader>
             <DialogTitle>Add New Shift</DialogTitle>
             <DialogDescription>
@@ -762,6 +767,9 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
               )}
             </DialogDescription>
           </DialogHeader>
+          <p id="add-shift-description" className="sr-only">
+            Fill out the form to add a new shift. Required fields include shift type, start time, end time, and assigned employee.
+          </p>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Shift Type</label>
@@ -845,13 +853,19 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
 
       {/* Print Schedule Dialog */}
       <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent 
+          className="sm:max-w-md"
+          aria-describedby="print-schedule-description"
+        >
           <DialogHeader>
             <DialogTitle>Print Employee Schedule</DialogTitle>
             <DialogDescription>
               Select an employee to print their monthly schedule
             </DialogDescription>
           </DialogHeader>
+          <p id="print-schedule-description" className="sr-only">
+            Select an employee to print their monthly schedule. You can preview the schedule before printing.
+          </p>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Select Employee</label>

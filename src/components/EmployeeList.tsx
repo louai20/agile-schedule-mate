@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { Search, User, Briefcase, Star, PlusCircle, ArrowRight, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, User, Briefcase, Star, PlusCircle, ArrowRight, Clock, Calendar } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,27 +10,21 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { ShiftType, getShiftTypeDisplayName, SHIFT_TYPES } from '@/utils/shiftTypes';
-
-// Mock employee data with work percentage and preferred shift types
-const MOCK_EMPLOYEES = [
-  { id: 1, name: 'Alice Johnson', role: 'Frontend Developer', skills: ['React', 'TypeScript', 'CSS'], availability: 'Full-time', workPercentage: 85, preferredShiftTypes: ['MORNING', 'AFTERNOON'] as ShiftType[] },
-  { id: 2, name: 'Bob Smith', role: 'Backend Developer', skills: ['Node.js', 'Python', 'SQL'], availability: 'Part-time', workPercentage: 45, preferredShiftTypes: ['EVENING'] as ShiftType[] },
-  { id: 3, name: 'Carol Davis', role: 'UX Designer', skills: ['Figma', 'Adobe XD', 'Sketch'], availability: 'Full-time', workPercentage: 90, preferredShiftTypes: ['MORNING_AFTERNOON'] as ShiftType[] },
-  { id: 4, name: 'David Wilson', role: 'Project Manager', skills: ['Agile', 'Scrum', 'Jira'], availability: 'Full-time', workPercentage: 78, preferredShiftTypes: ['MORNING', 'AFTERNOON_EVENING'] as ShiftType[] },
-  { id: 5, name: 'Eve Brown', role: 'DevOps Engineer', skills: ['Docker', 'Kubernetes', 'AWS'], availability: 'Contract', workPercentage: 60, preferredShiftTypes: ['EVENING_NIGHT'] as ShiftType[] },
-  { id: 6, name: 'Frank Taylor', role: 'QA Engineer', skills: ['Testing', 'Selenium', 'Cypress'], availability: 'Full-time', workPercentage: 88, preferredShiftTypes: ['MORNING', 'AFTERNOON'] as ShiftType[] },
-  { id: 7, name: 'Grace Lee', role: 'Data Scientist', skills: ['Python', 'R', 'Machine Learning'], availability: 'Part-time', workPercentage: 50, preferredShiftTypes: ['NIGHT'] as ShiftType[] },
-  { id: 8, name: 'Henry Martin', role: 'Mobile Developer', skills: ['React Native', 'Swift', 'Kotlin'], availability: 'Full-time', workPercentage: 72, preferredShiftTypes: ['LONG_SHIFT'] as ShiftType[] },
-];
+import { ApiService } from '@/services/api.service';
 
 interface Employee {
-  id: number;
+  Name: string;
+  work_percentages: number;
+  employeeRoleId: string;
+  created_at: string;
+  Preferences: string;
+  Availability: string;
+}
+
+interface EmployeeRole {
+  EmployeeRoleId: string;
   name: string;
-  role: string;
-  skills: string[];
-  availability: string;
-  workPercentage: number;
-  preferredShiftTypes?: ShiftType[];
+  created_at: string;
 }
 
 interface EmployeeListProps {
@@ -39,33 +32,99 @@ interface EmployeeListProps {
 }
 
 const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
-  const [employees] = useState<Employee[]>(MOCK_EMPLOYEES);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeeRoles, setEmployeeRoles] = useState<Record<string, EmployeeRole>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState<Employee[]>([]);
   const [newEmployeeName, setNewEmployeeName] = useState('');
   const [newEmployeeRole, setNewEmployeeRole] = useState('');
   const [newEmployeeSkills, setNewEmployeeSkills] = useState('');
-  const [newEmployeeAvailability, setNewEmployeeAvailability] = useState('Full-time');
-  const [newEmployeeWorkPercentage, setNewEmployeeWorkPercentage] = useState(100);
+  const [newEmployeeAvailability, setNewEmployeeAvailability] = useState('Weekdays');
+  const [newEmployeeWorkPercentage, setNewEmployeeWorkPercentage] = useState(60);
   const [newEmployeeShiftTypes, setNewEmployeeShiftTypes] = useState<ShiftType[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+
+  // Fetch employees and their roles on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Check if we have cached data
+        const cachedEmployees = localStorage.getItem('cachedEmployees');
+        const cachedRoles = localStorage.getItem('cachedEmployeeRoles');
+        const lastFetchTime = localStorage.getItem('lastFetchTime');
+        const currentTime = new Date().getTime();
+        
+        // If we have cached data and it's less than 5 minutes old, use it
+        if (cachedEmployees && cachedRoles && lastFetchTime && 
+            (currentTime - parseInt(lastFetchTime)) < 5 * 60 * 1000) {
+          setEmployees(JSON.parse(cachedEmployees));
+          setEmployeeRoles(JSON.parse(cachedRoles));
+          setIsLoading(false);
+          return;
+        }
+
+        // Otherwise, fetch fresh data
+        const employeesData = await ApiService.getEmployees();
+        setEmployees(employeesData);
+        localStorage.setItem('cachedEmployees', JSON.stringify(employeesData));
+
+        // Fetch roles for each employee
+        const roles: Record<string, EmployeeRole> = {};
+        for (const employee of employeesData) {
+          try {
+            const roleData = await ApiService.getEmployeeRoleById(employee.employeeRoleId);
+            if (roleData && roleData.length > 0) {
+              roles[employee.employeeRoleId] = roleData[0];
+            }
+          } catch (error) {
+            console.error(`Error fetching role for employee ${employee.EmployeeId}:`, error);
+          }
+        }
+        setEmployeeRoles(roles);
+        localStorage.setItem('cachedEmployeeRoles', JSON.stringify(roles));
+        localStorage.setItem('lastFetchTime', currentTime.toString());
+      } catch (err) {
+        setError('Failed to fetch employees');
+        console.error('Error fetching employees:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Update cache when employees or roles change
+  useEffect(() => {
+    if (employees.length > 0) {
+      localStorage.setItem('cachedEmployees', JSON.stringify(employees));
+    }
+    if (Object.keys(employeeRoles).length > 0) {
+      localStorage.setItem('cachedEmployeeRoles', JSON.stringify(employeeRoles));
+    }
+  }, [employees, employeeRoles]);
 
   const filteredEmployees = employees.filter((employee) => {
     const query = searchQuery.toLowerCase();
     return (
-      employee.name.toLowerCase().includes(query) ||
-      employee.role.toLowerCase().includes(query) ||
-      employee.skills.some((skill) => skill.toLowerCase().includes(query))
+      employee.Name.toLowerCase().includes(query) ||
+      employee.employeeRoleId.toLowerCase().includes(query) ||
+      employee.Skills.some((skill) => skill.toLowerCase().includes(query))
     );
   });
 
   const handleToggleEmployee = (employee: Employee) => {
     setSelectedEmployees((prev) => {
-      const isSelected = prev.some((e) => e.id === employee.id);
+      const isSelected = prev.some((e) => e.EmployeeId === employee.EmployeeId);
       
       let newSelection;
       if (isSelected) {
-        newSelection = prev.filter((e) => e.id !== employee.id);
+        newSelection = prev.filter((e) => e.EmployeeId !== employee.EmployeeId);
       } else {
         newSelection = [...prev, employee];
       }
@@ -86,24 +145,57 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     });
   };
 
-  const handleAddEmployee = () => {
-    // Validation: ensure at least one shift type is selected
-    if (newEmployeeShiftTypes.length === 0) {
-      alert("Please select at least one preferred shift type");
+  const handleAddEmployee = async () => {
+    if (!newEmployeeName || !newEmployeeRole || !newEmployeeAvailability || !newEmployeeWorkPercentage) {
+      alert('Please fill in all required fields');
       return;
     }
 
-    // In a real app, this would call an API to create a new employee
-    console.log('New employee would be created here with shift preferences:', newEmployeeShiftTypes);
-    setIsDialogOpen(false);
-    
-    // Reset form
-    setNewEmployeeName('');
-    setNewEmployeeRole('');
-    setNewEmployeeSkills('');
-    setNewEmployeeAvailability('Full-time');
-    setNewEmployeeWorkPercentage(100);
-    setNewEmployeeShiftTypes([]);
+    const employeeData = {
+      Name: newEmployeeName,
+      work_percentages: newEmployeeWorkPercentage,
+      employeeRoleId: newEmployeeRole,
+      created_at: new Date().toISOString(),
+      Preferences: newEmployeeShiftTypes[0] as "MORNING" | "EVENING" | "NIGHT" | "AFTERNOON" | "MORNING_AFTERNOON" | "AFTERNOON_EVENING" | "EVENING_NIGHT" | "LONG_SHIFT",
+      Availability: newEmployeeAvailability
+    };
+
+    try {
+      await ApiService.createEmployee(employeeData);
+      const updatedEmployees = await ApiService.getEmployees();
+      setEmployees(updatedEmployees);
+      setIsDialogOpen(false);
+      // Reset form fields
+      setNewEmployeeName('');
+      setNewEmployeeRole('');
+      setNewEmployeeAvailability('Weekdays');
+      setNewEmployeeWorkPercentage(60);
+      setNewEmployeeShiftTypes([]);
+    } catch (error) {
+      console.error('Error creating employee:', error);
+      alert('Failed to create employee. Please try again.');
+    }
+  };
+
+  const handleEditEmployee = async (employee: Employee) => {
+    setEditingEmployee(employee);
+    setNewEmployeeName(employee.Name);
+    setNewEmployeeRole(employee.employeeRoleId);
+    setNewEmployeeAvailability(employee.Availability);
+    setNewEmployeeWorkPercentage(employee.work_percentages);
+    setNewEmployeeShiftTypes([employee.Preferences]);
+    setIsDialogOpen(true);
+  };
+
+  const handleDeleteEmployee = async (employee: Employee) => {
+    try {
+      await ApiService.deleteEmployee(employee.Name);
+      const updatedEmployees = await ApiService.getEmployees();
+      setEmployees(updatedEmployees);
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      alert('Failed to delete employee. Please try again.');
+    }
   };
 
   // Function to get color based on work percentage
@@ -118,6 +210,42 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     if (percentage >= 50) return 'bg-amber-500';
     return 'bg-red-500';
   };
+
+  const renderEmployeeCard = (employee: Employee) => (
+    <div key={employee.Name} className="bg-white rounded-lg shadow-md p-4 mb-4">
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="text-lg font-semibold">{employee.Name}</h3>
+          <p className="text-gray-600">Role: {employee.employeeRoleId}</p>
+          <p className="text-gray-600">Work Percentage: {employee.work_percentages}%</p>
+          <p className="text-gray-600">Availability: {employee.Availability}</p>
+          <p className="text-gray-600">Preferences: {employee.Preferences}</p>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => handleEditEmployee(employee)}
+            className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => handleDeleteEmployee(employee)}
+            className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-full">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="flex justify-center items-center h-full text-red-500">{error}</div>;
+  }
 
   return (
     <div className="h-full flex flex-col animate-fade-in">
@@ -139,10 +267,16 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
               Add Employee
             </Button>
           </DialogTrigger>
-          <DialogContent className="glass-card sm:max-w-md">
+          <DialogContent 
+            className="glass-card sm:max-w-md"
+            aria-describedby="add-employee-description"
+          >
             <DialogHeader>
               <DialogTitle>Add New Employee</DialogTitle>
             </DialogHeader>
+            <p id="add-employee-description" className="sr-only">
+              Fill out the form to add a new employee to the system. Required fields include name, role, skills, availability, and preferred shift types.
+            </p>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <label htmlFor="name" className="text-sm font-medium">Name</label>
@@ -172,17 +306,13 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="availability" className="text-sm font-medium">Availability</label>
-                <select
+                <label htmlFor="availability" className="text-sm font-medium">Availability (comma separated)</label>
+                <Input
                   id="availability"
                   value={newEmployeeAvailability}
                   onChange={(e) => setNewEmployeeAvailability(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="Full-time">Full-time</option>
-                  <option value="Part-time">Part-time</option>
-                  <option value="Contract">Contract</option>
-                </select>
+                  placeholder="e.g. Monday, Tuesday, Wednesday"
+                />
               </div>
               <div className="space-y-2">
                 <label htmlFor="workPercentage" className="text-sm font-medium">
@@ -240,11 +370,11 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         <div className="flex flex-wrap gap-2">
           {selectedEmployees.map(employee => (
             <Badge 
-              key={employee.id} 
+              key={employee.EmployeeId} 
               variant="secondary"
               className="flex items-center gap-1 pl-2 pr-1 py-1 animate-fade-in"
             >
-              {employee.name}
+              {employee.Name}
               <button 
                 onClick={() => handleToggleEmployee(employee)}
                 className="ml-1 rounded-full hover:bg-muted/80 p-0.5"
@@ -263,9 +393,9 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredEmployees.map((employee, index) => (
             <AnimatedCard 
-              key={employee.id} 
+              key={employee.EmployeeId} 
               className={`employee-card relative ${
-                selectedEmployees.some(e => e.id === employee.id) 
+                selectedEmployees.some(e => e.EmployeeId === employee.EmployeeId) 
                   ? 'ring-2 ring-primary/60' 
                   : ''
               }`}
@@ -274,7 +404,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
             >
               <div className="absolute top-3 right-3">
                 <Checkbox
-                  checked={selectedEmployees.some(e => e.id === employee.id)}
+                  checked={selectedEmployees.some(e => e.EmployeeId === employee.EmployeeId)}
                   onCheckedChange={() => handleToggleEmployee(employee)}
                 />
               </div>
@@ -284,10 +414,10 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                   <User className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-medium">{employee.name}</h3>
+                  <h3 className="font-medium">{employee.Name}</h3>
                   <div className="flex items-center text-sm text-muted-foreground mt-1">
                     <Briefcase className="h-3 w-3 mr-1" />
-                    {employee.role}
+                    {employeeRoles[employee.employeeRoleId]?.name || 'Loading role...'}
                   </div>
                 </div>
               </div>
@@ -300,7 +430,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                   <span className="text-xs text-muted-foreground">Skills</span>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {employee.skills.map(skill => (
+                  {employee.Skills.map(skill => (
                     <Badge key={skill} variant="outline" className="text-xs">
                       {skill}
                     </Badge>
@@ -315,37 +445,64 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                   <span className="text-xs text-muted-foreground">Work Load</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Progress value={employee.workPercentage} className="h-2">
+                  <Progress value={employee.work_percentages} className="h-2">
                     <div 
-                      className={`h-full ${getProgressColor(employee.workPercentage)} rounded-full transition-all`} 
-                      style={{ width: `${employee.workPercentage}%` }}
+                      className={`h-full ${getProgressColor(employee.work_percentages)} rounded-full transition-all`} 
+                      style={{ width: `${employee.work_percentages}%` }}
                     />
                   </Progress>
-                  <span className={`text-xs font-medium ${getWorkPercentageColor(employee.workPercentage)}`}>
-                    {employee.workPercentage}%
+                  <span className={`text-xs font-medium ${getWorkPercentageColor(employee.work_percentages)}`}>
+                    {employee.work_percentages}%
                   </span>
                 </div>
               </div>
               
-              {/* Preferred Shift Types Section */}
+              <div className="mt-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Availability</span>
+                  <div className="flex flex-wrap gap-1">
+                    {(() => {
+                      try {
+                        const availability = typeof employee.Availability === 'string' 
+                          ? JSON.parse(employee.Availability)
+                          : employee.Availability;
+                        
+                        return Array.isArray(availability)
+                          ? availability.map((avail, index) => (
+                              <Badge key={index} variant="secondary" className="font-normal">
+                                {avail}
+                              </Badge>
+                            ))
+                          : <Badge variant="secondary" className="font-normal">
+                              {employee.Availability}
+                            </Badge>;
+                      } catch (e) {
+                        return <Badge variant="secondary" className="font-normal">
+                          {employee.Availability}
+                        </Badge>;
+                      }
+                    })()}
+                  </div>
+                </div>
+              </div>
+
               <div className="mt-3">
-                <div className="flex items-center mb-1">
+                <div className="flex items-center mb-2">
                   <Clock className="h-3 w-3 text-muted-foreground mr-1" />
                   <span className="text-xs text-muted-foreground">Preferred Shifts</span>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {employee.preferredShiftTypes?.map(shiftType => (
-                    <Badge key={shiftType} variant="secondary" className="text-xs">
-                      {getShiftTypeDisplayName(shiftType)}
+                  {employee.Preferences?.map(pref => (
+                    <Badge 
+                      key={pref} 
+                      variant="outline" 
+                      className="text-xs"
+                    >
+                      {pref.replace('_', ' ')}
                     </Badge>
                   ))}
                 </div>
-              </div>
-              
-              <div className="mt-3 text-xs text-right">
-                <Badge variant="secondary" className="font-normal">
-                  {employee.availability}
-                </Badge>
               </div>
             </AnimatedCard>
           ))}
