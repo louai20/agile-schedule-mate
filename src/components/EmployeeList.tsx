@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, User, Briefcase, Star, PlusCircle, ArrowRight, Clock, Calendar } from 'lucide-react';
+import { Search, User, Briefcase, Star, PlusCircle, ArrowRight, Clock, Calendar, Trash2 } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,10 +38,11 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
   const [employeeRoles, setEmployeeRoles] = useState<Record<string, EmployeeRole>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState<Employee[]>([]);
+  const [isAllSelected, setIsAllSelected] = useState(false);  // Moved this up
   const [newEmployeeName, setNewEmployeeName] = useState('');
   const [newEmployeeRole, setNewEmployeeRole] = useState('');
   const [newEmployeeSkills, setNewEmployeeSkills] = useState('');
-  const [newEmployeeAvailability, setNewEmployeeAvailability] = useState('Weekdays');
+  const [newEmployeeAvailability, setNewEmployeeAvailability] = useState('');
   const [newEmployeeWorkPercentage, setNewEmployeeWorkPercentage] = useState(60);
   const [newEmployeeShiftTypes, setNewEmployeeShiftTypes] = useState<ShiftType[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -116,26 +117,31 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     return (
       employee.Name.toLowerCase().includes(query) ||
       employee.employeeRoleId.toLowerCase().includes(query) ||
-      (employee.Preferences && employee.Preferences.toLowerCase().includes(query))
+      (employee.Preferences && (
+        Array.isArray(employee.Preferences)
+          ? employee.Preferences.some(pref => pref.toString().toLowerCase().includes(query))
+          : employee.Preferences.toString().toLowerCase().includes(query)
+      ))
     );
   });
 
+  // Update the handleToggleEmployee function
   const handleToggleEmployee = (employee: Employee) => {
     setSelectedEmployees((prev) => {
       const isSelected = prev.some((e) => e.Name === employee.Name);
+      const newSelection = isSelected 
+        ? prev.filter((e) => e.Name !== employee.Name)
+        : [...prev, employee];
       
-      let newSelection;
-      if (isSelected) {
-        newSelection = prev.filter((e) => e.Name !== employee.Name);
-      } else {
-        newSelection = [...prev, employee];
-      }
-      
-      // Update parent component
-      onEmployeesSelected(newSelection);
+      // Move the parent update to useEffect
       return newSelection;
     });
   };
+
+  // Add this useEffect to handle parent updates
+  useEffect(() => {
+    onEmployeesSelected(selectedEmployees);
+  }, [selectedEmployees, onEmployeesSelected]);
 
   const handleToggleShiftType = (shiftType: ShiftType) => {
     setNewEmployeeShiftTypes((prev) => {
@@ -180,7 +186,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         // Reset form fields
         setNewEmployeeName('');
         setNewEmployeeRole('');
-        setNewEmployeeAvailability('Weekdays');
+        setNewEmployeeAvailability('');
         setNewEmployeeWorkPercentage(60);
         setNewEmployeeShiftTypes([]);
         setNewEmployeeSkills('');
@@ -270,6 +276,20 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     return <div className="flex justify-center items-center h-full text-red-500">{error}</div>;
   }
 
+  // Remove these duplicate declarations
+  // const [isAllSelected, setIsAllSelected] = useState(false);
+
+  // Keep the handleSelectAll function
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedEmployees([]);
+      setIsAllSelected(false);
+    } else {
+      setSelectedEmployees(employees);
+      setIsAllSelected(true);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col animate-fade-in">
       <div className="flex justify-between items-center mb-4">
@@ -283,107 +303,123 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
           />
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="ml-2 flex items-center gap-1">
-              <PlusCircle className="h-4 w-4" />
-              Add Employee
-            </Button>
-          </DialogTrigger>
-          <DialogContent 
-            className="glass-card sm:max-w-md"
-            aria-describedby="add-employee-description"
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            className="flex items-center gap-1"
+            onClick={handleSelectAll}
           >
-            <DialogHeader>
-              <DialogTitle>Add New Employee</DialogTitle>
-            </DialogHeader>
-            <p id="add-employee-description" className="sr-only">
-              Fill out the form to add a new employee to the system. Required fields include name, role, skills, availability, and preferred shift types.
-            </p>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <label htmlFor="name" className="text-sm font-medium">Name</label>
-                <Input
-                  id="name"
-                  value={newEmployeeName}
-                  onChange={(e) => setNewEmployeeName(e.target.value)}
-                  placeholder="Enter employee name"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="role" className="text-sm font-medium">Role</label>
-                <Input
-                  id="role"
-                  value={newEmployeeRole}
-                  onChange={(e) => setNewEmployeeRole(e.target.value)}
-                  placeholder="Enter employee role"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="skills" className="text-sm font-medium">Skills (comma separated)</label>
-                <Input
-                  id="skills"
-                  value={newEmployeeSkills}
-                  onChange={(e) => setNewEmployeeSkills(e.target.value)}
-                  placeholder="e.g. React, TypeScript, CSS"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="availability" className="text-sm font-medium">Availability (comma separated)</label>
-                <Input
-                  id="availability"
-                  value={newEmployeeAvailability}
-                  onChange={(e) => setNewEmployeeAvailability(e.target.value)}
-                  placeholder="e.g. Monday, Tuesday, Wednesday"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="workPercentage" className="text-sm font-medium">
-                  Work Percentage: {newEmployeeWorkPercentage}%
-                </label>
-                <input
-                  id="workPercentage"
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={newEmployeeWorkPercentage}
-                  onChange={(e) => setNewEmployeeWorkPercentage(parseInt(e.target.value))}
-                  className="w-full"
-                />
-              </div>
+            <User className="h-4 w-4" />
+            {isAllSelected ? 'Unselect All' : 'Select All'}
+          </Button>
 
-              {/* Preferred Shift Types Section */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Preferred Shift Types (select at least one)
-                </label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  {(Object.keys(SHIFT_TYPES) as ShiftType[]).map((shiftType) => (
-                    <div key={shiftType} className="flex items-center space-x-2">
-                      <Checkbox 
-                        id={`shift-${shiftType}`}
-                        checked={newEmployeeShiftTypes.includes(shiftType)}
-                        onCheckedChange={() => handleToggleShiftType(shiftType)}
-                      />
-                      <label 
-                        htmlFor={`shift-${shiftType}`}
-                        className="text-sm cursor-pointer"
-                      >
-                        {getShiftTypeDisplayName(shiftType)}
-                      </label>
-                    </div>
-                  ))}
+          <Button variant="destructive" className="flex items-center gap-1">
+            <Trash2 className="h-4 w-4" />
+            Delete Employee
+          </Button>
+
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-1">
+                <PlusCircle className="h-4 w-4" />
+                Add Employee
+              </Button>
+            </DialogTrigger>
+            <DialogContent 
+              className="glass-card sm:max-w-md"
+              aria-describedby="add-employee-description"
+            >
+              <DialogHeader>
+                <DialogTitle>Add New Employee</DialogTitle>
+              </DialogHeader>
+              <p id="add-employee-description" className="sr-only">
+                Fill out the form to add a new employee to the system. Required fields include name, role, skills, availability, and preferred shift types.
+              </p>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <label htmlFor="name" className="text-sm font-medium">Name</label>
+                  <Input
+                    id="name"
+                    value={newEmployeeName}
+                    onChange={(e) => setNewEmployeeName(e.target.value)}
+                    placeholder="Enter employee name"
+                  />
                 </div>
-                {newEmployeeShiftTypes.length === 0 && (
-                  <p className="text-xs text-red-500">Please select at least one shift type</p>
-                )}
+                <div className="space-y-2">
+                  <label htmlFor="role" className="text-sm font-medium">Role</label>
+                  <Input
+                    id="role"
+                    value={newEmployeeRole}
+                    onChange={(e) => setNewEmployeeRole(e.target.value)}
+                    placeholder="Enter employee role"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="skills" className="text-sm font-medium">Skills (comma separated)</label>
+                  <Input
+                    id="skills"
+                    value={newEmployeeSkills}
+                    onChange={(e) => setNewEmployeeSkills(e.target.value)}
+                    placeholder="e.g. React, TypeScript, CSS"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="availability" className="text-sm font-medium">Availability (comma separated)</label>
+                  <Input
+                    id="availability"
+                    value={newEmployeeAvailability}
+                    onChange={(e) => setNewEmployeeAvailability(e.target.value)}
+                    placeholder="e.g. Monday, Tuesday, Wednesday"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="workPercentage" className="text-sm font-medium">
+                    Work Percentage: {newEmployeeWorkPercentage}%
+                  </label>
+                  <input
+                    id="workPercentage"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={newEmployeeWorkPercentage}
+                    onChange={(e) => setNewEmployeeWorkPercentage(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Preferred Shift Types Section */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Preferred Shift Types (select at least one)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {(Object.keys(SHIFT_TYPES) as ShiftType[]).map((shiftType) => (
+                      <div key={shiftType} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`shift-${shiftType}`}
+                          checked={newEmployeeShiftTypes.includes(shiftType)}
+                          onCheckedChange={() => handleToggleShiftType(shiftType)}
+                        />
+                        <label 
+                          htmlFor={`shift-${shiftType}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {getShiftTypeDisplayName(shiftType)}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  {newEmployeeShiftTypes.length === 0 && (
+                    <p className="text-xs text-red-500">Please select at least one shift type</p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={handleAddEmployee}>Add Employee</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+              <div className="flex justify-end">
+                <Button onClick={handleAddEmployee}>Add Employee</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="mt-2 mb-6">
