@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, User, Briefcase, Star, PlusCircle, ArrowRight, Clock, Calendar } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Progress } from '@/components/ui/progress';
 import { ShiftType, getShiftTypeDisplayName, SHIFT_TYPES } from '@/utils/shiftTypes';
 import { ApiService } from '@/services/api.service';
+import { useToast } from "@/components/ui/use-toast";
 
 interface Employee {
   Name: string;
@@ -32,6 +33,7 @@ interface EmployeeListProps {
 }
 
 const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
+  const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeeRoles, setEmployeeRoles] = useState<Record<string, EmployeeRole>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,17 +116,17 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     return (
       employee.Name.toLowerCase().includes(query) ||
       employee.employeeRoleId.toLowerCase().includes(query) ||
-      employee.Skills.some((skill) => skill.toLowerCase().includes(query))
+      (employee.Preferences && employee.Preferences.toLowerCase().includes(query))
     );
   });
 
   const handleToggleEmployee = (employee: Employee) => {
     setSelectedEmployees((prev) => {
-      const isSelected = prev.some((e) => e.EmployeeId === employee.EmployeeId);
+      const isSelected = prev.some((e) => e.Name === employee.Name);
       
       let newSelection;
       if (isSelected) {
-        newSelection = prev.filter((e) => e.EmployeeId !== employee.EmployeeId);
+        newSelection = prev.filter((e) => e.Name !== employee.Name);
       } else {
         newSelection = [...prev, employee];
       }
@@ -146,35 +148,56 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
   };
 
   const handleAddEmployee = async () => {
-    if (!newEmployeeName || !newEmployeeRole || !newEmployeeAvailability || !newEmployeeWorkPercentage) {
-      alert('Please fill in all required fields');
-      return;
-    }
+      if (!newEmployeeName || !newEmployeeAvailability || !newEmployeeWorkPercentage) {
+        toast({
+          variant: "destructive",
+          title: "Missing Information",
+          description: "Please fill in all required fields"
+        });
+        return;
+      }
+  
+      const employeeData = {
+        Name: newEmployeeName.charAt(0).toUpperCase() + newEmployeeName.slice(1),
+        work_percentages: parseInt(newEmployeeWorkPercentage.toString()),
+        Availability: [newEmployeeAvailability],
+        employeeRoleId: "307a4d64-2eae-4d3c-af98-0881f2730d25",
+        Skills: newEmployeeSkills
+          .split(',')
+          .map(skill => skill.trim())
+          .filter(Boolean)
+          .map(skill => skill.charAt(0).toUpperCase() + skill.slice(1)),
+        Preferences: newEmployeeShiftTypes.length > 0 
+          ? newEmployeeShiftTypes.map(type => type.toUpperCase())
+          : ["MORNING"]
+      };
+  
+      try {
+        await ApiService.createEmployee(employeeData);
+        const updatedEmployees = await ApiService.getEmployees();
+        setEmployees(updatedEmployees);
+        setIsDialogOpen(false);
+        // Reset form fields
+        setNewEmployeeName('');
+        setNewEmployeeRole('');
+        setNewEmployeeAvailability('Weekdays');
+        setNewEmployeeWorkPercentage(60);
+        setNewEmployeeShiftTypes([]);
+        setNewEmployeeSkills('');
 
-    const employeeData = {
-      Name: newEmployeeName,
-      work_percentages: newEmployeeWorkPercentage,
-      employeeRoleId: newEmployeeRole,
-      created_at: new Date().toISOString(),
-      Preferences: newEmployeeShiftTypes[0] as "MORNING" | "EVENING" | "NIGHT" | "AFTERNOON" | "MORNING_AFTERNOON" | "AFTERNOON_EVENING" | "EVENING_NIGHT" | "LONG_SHIFT",
-      Availability: newEmployeeAvailability
-    };
-
-    try {
-      await ApiService.createEmployee(employeeData);
-      const updatedEmployees = await ApiService.getEmployees();
-      setEmployees(updatedEmployees);
-      setIsDialogOpen(false);
-      // Reset form fields
-      setNewEmployeeName('');
-      setNewEmployeeRole('');
-      setNewEmployeeAvailability('Weekdays');
-      setNewEmployeeWorkPercentage(60);
-      setNewEmployeeShiftTypes([]);
-    } catch (error) {
-      console.error('Error creating employee:', error);
-      alert('Failed to create employee. Please try again.');
-    }
+        toast({
+          title: "Success",
+          description: `Employee ${employeeData.Name} has been added successfully`,
+          className: "bg-green-500 text-white",
+        });
+      } catch (error) {
+        console.error('Error creating employee:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to create employee. Please try again."
+        });
+      }
   };
 
   const handleEditEmployee = async (employee: Employee) => {
@@ -183,7 +206,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     setNewEmployeeRole(employee.employeeRoleId);
     setNewEmployeeAvailability(employee.Availability);
     setNewEmployeeWorkPercentage(employee.work_percentages);
-    setNewEmployeeShiftTypes([employee.Preferences]);
+    setNewEmployeeShiftTypes([employee.Preferences as ShiftType]);
     setIsDialogOpen(true);
   };
 
@@ -370,7 +393,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         <div className="flex flex-wrap gap-2">
           {selectedEmployees.map(employee => (
             <Badge 
-              key={employee.EmployeeId} 
+              key={employee.Name}
               variant="secondary"
               className="flex items-center gap-1 pl-2 pr-1 py-1 animate-fade-in"
             >
@@ -393,9 +416,9 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredEmployees.map((employee, index) => (
             <AnimatedCard 
-              key={employee.EmployeeId} 
+              key={employee.Name}
               className={`employee-card relative ${
-                selectedEmployees.some(e => e.EmployeeId === employee.EmployeeId) 
+                selectedEmployees.some(e => e.Name === employee.Name) 
                   ? 'ring-2 ring-primary/60' 
                   : ''
               }`}
@@ -404,7 +427,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
             >
               <div className="absolute top-3 right-3">
                 <Checkbox
-                  checked={selectedEmployees.some(e => e.EmployeeId === employee.EmployeeId)}
+                  checked={selectedEmployees.some(e => e.Name === employee.Name)}
                   onCheckedChange={() => handleToggleEmployee(employee)}
                 />
               </div>

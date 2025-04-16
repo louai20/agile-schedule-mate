@@ -58,17 +58,17 @@ export class ApiService {
         return this.fetchData(`/Employee?EmployeeId=eq.${id}`);
     }
 
+    // Update the createEmployee method to match the database schema
     static async createEmployee(employeeData: {
         Name: string;
         work_percentages: number;
-        Availability: string;
-        employeeRoleId: string;
-        Skills: string;
-        Preferences: string;
+        Availability: string[];
+        Skills: string[];
+        Preferences: string[];
     }): Promise<Employee> {
         return this.fetchData('/Employee', {
             method: 'POST',
-            body: JSON.stringify(employeeData),
+            body: JSON.stringify(employeeData)
         });
     }
 
