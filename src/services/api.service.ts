@@ -80,7 +80,7 @@ export class ApiService {
     }
 
     static async deleteEmployee(id: string) {
-        return this.fetchData(`/Employee?EmployeeId=eq.${id}`, {
+        return this.fetchData(`/Employee?Name=eq.${id}`, {
             method: 'DELETE',
         });
     }

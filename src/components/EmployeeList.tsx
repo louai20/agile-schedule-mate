@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, User, Briefcase, Star, PlusCircle, ArrowRight, Clock, Calendar, Trash2 } from 'lucide-react';
+import { Search, User, Briefcase, Star, PlusCircle, ArrowRight, Clock, Calendar, Trash2, Check } from 'lucide-react';
 import AnimatedCard from './ui/AnimatedCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { ShiftType, getShiftTypeDisplayName, SHIFT_TYPES } from '@/utils/shiftTypes';
 import { ApiService } from '@/services/api.service';
@@ -49,6 +49,10 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+
+  // Add state for the Delete dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
   // Fetch employees and their roles on component mount
   useEffect(() => {
@@ -216,14 +220,36 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     setIsDialogOpen(true);
   };
 
-  const handleDeleteEmployee = async (employee: Employee) => {
+  // Modify handleDeleteEmployee to use the new state and add toasts
+  const handleDeleteEmployee = async (employee: Employee | null) => {
+    if (!employee) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No employee selected for deletion."
+      });
+      return; 
+    }
+
     try {
-      await ApiService.deleteEmployee(employee.Name);
+      await ApiService.deleteEmployee(employee.Name); 
       const updatedEmployees = await ApiService.getEmployees();
       setEmployees(updatedEmployees);
+      toast({ 
+        title: "Success",
+        description: `Employee ${employee.Name} has been deleted successfully`,
+        className: "bg-green-500 text-white",
+      });
+      setIsDeleteDialogOpen(false); // Close the delete dialog
+      setEmployeeToDelete(null); // Reset the selection state
     } catch (error) {
       console.error('Error deleting employee:', error);
-      alert('Failed to delete employee. Please try again.');
+      toast({ 
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete employee. Please try again."
+      });
+      // Optionally keep dialog open on error
     }
   };
 
@@ -313,24 +339,85 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
             {isAllSelected ? 'Unselect All' : 'Select All'}
           </Button>
 
-          <Button variant="destructive" className="flex items-center gap-1">
-            <Trash2 className="h-4 w-4" />
-            Delete Employee
-          </Button>
+          {/* Delete Employee Dialog */}
+          <Dialog open={isDeleteDialogOpen} onOpenChange={(open) => {
+              setIsDeleteDialogOpen(open);
+              // Reset selection if dialog is closed by clicking outside or X
+              if (!open) {
+                setEmployeeToDelete(null);
+              }
+            }}>
+            <DialogTrigger asChild>
+              <Button variant="destructive" className="flex items-center gap-1">
+                <Trash2 className="h-4 w-4" />
+                Delete Employee
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Delete Employee</DialogTitle>
+              </DialogHeader>
+              <div className="mb-4">
+                <p className="text-sm text-muted-foreground mb-2">Select an employee to permanently delete:</p>
+                {/* Try adding explicit overflow style */}
+                <ScrollArea className="max-h-60 border rounded-md" style={{ overflowY: 'auto' }}> 
+                  <div className="p-2 space-y-1">
+                    {/* ... console.log ... */}
+                    {employees.length > 0 ? employees.map(emp => (
+                      <div
+                        key={emp.Name} // Assuming Name is unique identifier
+                        className={`flex items-center justify-between px-3 py-2 rounded cursor-pointer text-sm ${
+                          employeeToDelete?.Name === emp.Name
+                            ? 'bg-destructive/10 text-destructive font-medium ring-1 ring-destructive/30' // Highlight selected
+                            : 'hover:bg-muted/50' // Hover effect
+                        }`}
+                        onClick={() => setEmployeeToDelete(emp)} // Set employee to delete on click
+                      >
+                        <span>{emp.Name}</span>
+                        {employeeToDelete?.Name === emp.Name && (
+                          <Check className="h-4 w-4 text-destructive" /> // Show checkmark when selected
+                        )}
+                      </div>
+                    )) : (
+                      <p className="text-center text-sm text-muted-foreground py-4">No employees found.</p>
+                    )}
+                  </div>
+                </ScrollArea> {/* End of ScrollArea */}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                    setIsDeleteDialogOpen(false); // Close dialog
+                    setEmployeeToDelete(null); // Reset selection on cancel
+                  }}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={!employeeToDelete} // Disable if no employee is selected
+                  onClick={() => handleDeleteEmployee(employeeToDelete)} // Call delete handler
+                >
+                  Delete {employeeToDelete ? ` ${employeeToDelete.Name}` : ''}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
+          {/* Add Employee Dialog (uses isDialogOpen) */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-1">
                 <PlusCircle className="h-4 w-4" />
-                Add Employee
+                {/* Update button text if editing */}
+                {editingEmployee ? 'Edit Employee' : 'Add Employee'} 
               </Button>
             </DialogTrigger>
             <DialogContent 
               className="glass-card sm:max-w-md"
               aria-describedby="add-employee-description"
             >
+              {/* Update title if editing */}
               <DialogHeader>
-                <DialogTitle>Add New Employee</DialogTitle>
+                <DialogTitle>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
               </DialogHeader>
               <p id="add-employee-description" className="sr-only">
                 Fill out the form to add a new employee to the system. Required fields include name, role, skills, availability, and preferred shift types.
