@@ -13,6 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { SHIFT_TYPES, ShiftType, getShiftTypeColor, getDefaultShiftHours, getShiftTypeDisplayName } from '@/utils/shiftTypes';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ApiService } from '@/services/api.service'; // Import ApiService
 
 interface ScheduleCalendarProps {
   selectedEmployees: any[];
@@ -30,7 +31,20 @@ interface ScheduleItem {
   endTime: string;
 }
 
+// Define polling interval (e.g., 2 seconds)
+const POLLING_INTERVAL_MS = 2000;
+// Define a maximum number of polling attempts to prevent infinite loops
+const MAX_POLLING_ATTEMPTS = 30; // e.g., 30 attempts * 2 seconds = 1 minute timeout
+
 const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalendarProps) => {
+  // Log the received props when they change
+  useEffect(() => {
+    console.log("ScheduleCalendar received props:", {
+      employees: selectedEmployees,
+      shifts: selectedShifts,
+    });
+  }, [selectedEmployees, selectedShifts]); // Dependency array ensures this runs when props change
+
   const hasEnoughData = selectedEmployees.length > 0 && selectedShifts.length > 0;
   const printRef = useRef<HTMLDivElement>(null);
   
@@ -43,7 +57,9 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [pendingSchedule, setPendingSchedule] = useState<ScheduleItem[]>([]);
   const [generatedSchedule, setGeneratedSchedule] = useState(false);
-  
+  const [isSolving, setIsSolving] = useState(false); // Ensure this line exists and is correct
+  const [pollingAttempts, setPollingAttempts] = useState(0); // State to track polling attempts
+
   // Filter state
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   
@@ -212,50 +228,122 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     }
   };
 
-  // Auto-generate a schedule
-  const handleSolveSchedule = () => {
-    console.log('Solving schedule using Timefold...');
-    console.log('Selected employees:', selectedEmployees);
-    console.log('Selected shifts:', selectedShifts);
-    
-    // For demo purposes, prepare a random schedule
-    const newSchedule: ScheduleItem[] = [];
-    
-    // Add a few random shifts for the selected employees
-    selectedEmployees.forEach((employee: any) => {
-      // Get employee's preferred shift types, or use all if none specified
-      const preferredShiftTypes = employee.preferredShiftTypes || Object.keys(SHIFT_TYPES) as ShiftType[];
-      
-      // Add 2-3 shifts for each employee
-      const shiftsToAdd = Math.floor(Math.random() * 3) + 2;
-      
-      for (let i = 0; i < shiftsToAdd; i++) {
-        const randomDay = calendarDays[Math.floor(Math.random() * calendarDays.length)];
-        const randomShift = selectedShifts[Math.floor(Math.random() * selectedShifts.length)];
-        
-        // Choose a random shift type from employee's preferences
-        const randomShiftType = preferredShiftTypes[Math.floor(Math.random() * preferredShiftTypes.length)];
-        const defaultHours = getDefaultShiftHours(randomShiftType);
-        
-        if (randomShift) {
-          newSchedule.push({
-            id: Date.now().toString() + i,
-            title: getShiftTypeDisplayName(randomShiftType),
-            employees: [employee.name || 'Employee'],
-            date: randomDay,
-            color: getShiftTypeColor(randomShiftType),
-            shiftType: randomShiftType,
-            startTime: defaultHours.start,
-            endTime: defaultHours.end
-          });
+  // Function to process the final schedule result
+  const processScheduleResult = (result: any) => {
+    if (result && result.solverStatus === "NOT_SOLVING") {
+      // Handle the successful completion case, even if assignments is missing
+      toast.success("Solving is completed");
+      // You can process employees/shifts/score here if needed
+      setGeneratedSchedule(true);
+      setIsSolving(false);
+      // Optionally, clear pending schedule or update it based on your needs
+      // setPendingSchedule([]);
+      return;
+    }
+    if (result && Array.isArray(result.assignments)) {
+      const newPendingSchedule: ScheduleItem[] = result.assignments.map((assignment: any) => {
+        const originalShift = selectedShifts.find(s => s.ShiftID === assignment.shiftId);
+        if (!originalShift) {
+          console.warn(`Original shift not found for assignment with shiftId: ${assignment.shiftId}`);
+          return null;
         }
+        let shiftType: ShiftType = 'MORNING';
+        if (originalShift.StartTime) {
+            try {
+                const startHour = parseISO(originalShift.StartTime).getHours();
+                if (startHour >= 12 && startHour < 18) shiftType = 'AFTERNOON';
+                else if (startHour >= 18 || startHour < 6) shiftType = 'NIGHT';
+            } catch (parseError) {
+                console.error("Error parsing shift StartTime:", originalShift.StartTime, parseError);
+            }
+        } else {
+             console.warn(`Shift with ID ${assignment.shiftId} has no StartTime.`);
+        }
+
+        const color = getShiftTypeColor(shiftType);
+        const title = getShiftTypeDisplayName(shiftType);
+        return {
+          id: `${assignment.shiftId}-${assignment.employeeName}`,
+          title: title,
+          employees: [assignment.employeeName],
+          date: originalShift.StartTime ? parseISO(originalShift.StartTime) : new Date(),
+          color: color,
+          shiftType: shiftType,
+          startTime: originalShift.StartTime ? format(parseISO(originalShift.StartTime), 'HH:mm') : 'N/A',
+          endTime: originalShift.EndTime ? format(parseISO(originalShift.EndTime), 'HH:mm') : 'N/A'
+        };
+      }).filter((item: ScheduleItem | null): item is ScheduleItem => item !== null);
+
+      setPendingSchedule(newPendingSchedule);
+      setGeneratedSchedule(true);
+      toast.success('Optimal schedule generated! Review and apply when ready.');
+    } else {
+      console.error("Unexpected response structure from Timefold:", result);
+      toast.error("Received unexpected data from the schedule solver.");
+      setPendingSchedule([]);
+      setGeneratedSchedule(false);
+    }
+  };
+
+  // Polling function to check schedule status
+  const pollForResult = async (scheduleId: string, attempt: number) => {
+    console.log(`Polling for schedule ${scheduleId}, attempt ${attempt + 1}`);
+
+    if (attempt >= MAX_POLLING_ATTEMPTS) {
+        toast.error("Schedule generation timed out. Please try again later.");
+        setIsSolving(false);
+        return;
+    }
+
+    try {
+      const result = await ApiService.getScheduleResult(scheduleId);
+
+      if (result.solverStatus === "NOT_SOLVING") {
+        toast.success("Solving is completed");
+        console.log("Solver finished. Processing results:", result);
+        processScheduleResult(result);
+        setIsSolving(false);
+      } else if (result.solverStatus === "SOLVING_ACTIVE") {
+        console.log(`Solver is still running (Status: ${result.solverStatus}). Polling again soon...`);
+        setTimeout(() => pollForResult(scheduleId, attempt + 1), POLLING_INTERVAL_MS);
+      } else {
+          const unknownStatus = result.solverStatus || "UNKNOWN";
+          console.warn(`Unknown solver status received: ${unknownStatus}`);
+          toast.warning(`Received unexpected status: ${unknownStatus}. Continuing to check...`);
+          setTimeout(() => pollForResult(scheduleId, attempt + 1), POLLING_INTERVAL_MS);
       }
-    });
-    
-    // Store the generated schedule but don't apply it yet
-    setPendingSchedule(newSchedule);
-    setGeneratedSchedule(true);
-    toast.success('Schedule generated! Review and apply when ready.');
+    } catch (error) {
+      console.error(`Error polling for schedule result (ID: ${scheduleId}):`, error);
+      toast.error(`Failed to get schedule status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsSolving(false);
+    }
+  };
+
+  // Auto-generate a schedule - Initiates solving and polling
+  const handleSolveSchedule = async () => {
+    if (!hasEnoughData) {
+      toast.error("Please select at least one employee and one shift first.");
+      return;
+    }
+
+    setIsSolving(true);
+    setGeneratedSchedule(false);
+    setPendingSchedule([]);
+    setPollingAttempts(0);
+
+    try {
+      toast.info("Initiating schedule generation...");
+      const scheduleId = await ApiService.solveSchedule(selectedEmployees, selectedShifts);
+      console.log("Received schedule ID:", scheduleId);
+      toast.info(`Schedule generation started (ID: ${scheduleId}). Checking status...`);
+
+      pollForResult(scheduleId, 0);
+
+    } catch (error) {
+      console.error('Error initiating schedule generation:', error);
+      toast.error(`Failed to start schedule generation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsSolving(false);
+    }
   };
 
   // Apply the generated schedule
@@ -850,7 +938,6 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Print Schedule Dialog */}
       <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
         <DialogContent 
