@@ -372,7 +372,7 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
                 <div className="flex items-center text-sm">
                   <Clock className="h-3 w-3 mr-1.5 text-muted-foreground" />
                   <span>
-                    {format(new Date(shift.StartTime), 'h:mm a')} - {format(new Date(shift.EndTime), 'h:mm a')}
+                    {format(new Date(shift.StartTime), 'HH:mm a')} - {format(new Date(shift.EndTime), 'HH:mm a')}
                   </span>
                 </div>
                 

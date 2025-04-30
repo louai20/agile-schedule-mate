@@ -36,13 +36,36 @@ interface TimefoldPayload {
 // Interface for the expected structure of the Timefold API response
 // Adjust this based on the actual response structure
 interface TimefoldResponse {
-    assignments: {
-        employeeName: string;
-        shiftId: string;
-        // Add other relevant fields from the response
+    shifts: {
+        id: string;
+        start: string;
+        end: string;
+        location: string;
+        requiredSkill: string;
+        shiftMinutes: number;
+        shiftType: string;
+        employee: {
+            name: string;
+            workPercentage: number;
+            availableWorkMinutes: number;
+            // Add other relevant fields from the employee object
+        };
     }[];
-    // Update solver status to only include known active and inactive states
-    solverStatus: "NOT_SOLVING" | "SOLVING_ACTIVE" | string; 
+    employees: {
+        name: string;
+        workPercentage: number;
+        availableWorkMinutes: number;
+    }[];
+    score: {
+        initScore: number;
+        hardScore: number;
+        softScore: number;
+        feasible: boolean; // New attribute
+        solutionInitialized: boolean; // New attribute
+        zero: boolean; // New attribute
+        // Add other relevant fields from the score object
+    };
+    solverStatus: "NOT_SOLVING" | "SOLVING_ACTIVE" | string;
 }
 
 
@@ -270,7 +293,6 @@ export class ApiService {
 
             // Log raw text first for debugging
             const responseText = await response.text();
-            console.log('ApiService: Raw Timefold API Get Result Response Text:', responseText);
 
             if (!response.ok) {
                  console.error('ApiService: Timefold API Get Result Error Response Text:', responseText);

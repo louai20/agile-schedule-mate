@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CalendarPlus, AlertCircle, CheckCircle, ArrowLeft, GripVertical, Info, Trash2, UserPlus, Users, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Filter, Clock, Printer } from 'lucide-react';
+import { AddShiftDialog } from './ScheduleDialogs';
 import { Button } from '@/components/ui/button';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, addDays, isSameDay, parseISO, setHours, setMinutes, startOfWeek, endOfWeek, addWeeks, isSameMonth } from 'date-fns';
+import { getShiftsForDay } from './ScheduleCalendarUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -31,8 +33,8 @@ interface ScheduleItem {
   endTime: string;
 }
 
-// Define polling interval (e.g., 2 seconds)
-const POLLING_INTERVAL_MS = 2000;
+// Define polling interval (e.g., 1 seconds)
+const POLLING_INTERVAL_MS = 1000;
 // Define a maximum number of polling attempts to prevent infinite loops
 const MAX_POLLING_ATTEMPTS = 30; // e.g., 30 attempts * 2 seconds = 1 minute timeout
 
@@ -231,17 +233,12 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
   // Function to process the final schedule result
   const processScheduleResult = (result: any) => {
     if (result && result.solverStatus === "NOT_SOLVING") {
-      // Handle the successful completion case, even if assignments is missing
-      toast.success("Solving is completed");
-      // You can process employees/shifts/score here if needed
       setGeneratedSchedule(true);
       setIsSolving(false);
-      // Optionally, clear pending schedule or update it based on your needs
-      // setPendingSchedule([]);
       return;
     }
     if (result && Array.isArray(result.assignments)) {
-      const newPendingSchedule: ScheduleItem[] = result.assignments.map((assignment: any) => {
+      const newShifts: ScheduleItem[] = result.assignments.map((assignment: any) => {
         const originalShift = selectedShifts.find(s => s.ShiftID === assignment.shiftId);
         if (!originalShift) {
           console.warn(`Original shift not found for assignment with shiftId: ${assignment.shiftId}`);
@@ -274,9 +271,9 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
         };
       }).filter((item: ScheduleItem | null): item is ScheduleItem => item !== null);
 
-      setPendingSchedule(newPendingSchedule);
+      setScheduleItems(prev => [...prev, ...newShifts]);
       setGeneratedSchedule(true);
-      toast.success('Optimal schedule generated! Review and apply when ready.');
+      toast.success('Optimal schedule generated and added to calendar!');
     } else {
       console.error("Unexpected response structure from Timefold:", result);
       toast.error("Received unexpected data from the schedule solver.");
@@ -296,28 +293,62 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     }
 
     try {
-      const result = await ApiService.getScheduleResult(scheduleId);
+        const result = await ApiService.getScheduleResult(scheduleId);
 
-      if (result.solverStatus === "NOT_SOLVING") {
-        toast.success("Solving is completed");
-        console.log("Solver finished. Processing results:", result);
-        processScheduleResult(result);
-        setIsSolving(false);
-      } else if (result.solverStatus === "SOLVING_ACTIVE") {
-        console.log(`Solver is still running (Status: ${result.solverStatus}). Polling again soon...`);
-        setTimeout(() => pollForResult(scheduleId, attempt + 1), POLLING_INTERVAL_MS);
-      } else {
-          const unknownStatus = result.solverStatus || "UNKNOWN";
-          console.warn(`Unknown solver status received: ${unknownStatus}`);
-          toast.warning(`Received unexpected status: ${unknownStatus}. Continuing to check...`);
-          setTimeout(() => pollForResult(scheduleId, attempt + 1), POLLING_INTERVAL_MS);
-      }
+        // Check if the score object is feasible
+        if (result.score && result.score.feasible === false) {
+            toast.error("The schedule is not feasible. No shifts will be added to the calendar.");
+            // Continue polling but do not add shifts
+            if (result.solverStatus === "SOLVING_ACTIVE") {
+                console.log(`Solver is still running (Status: ${result.solverStatus}). Polling again soon...`);
+                setTimeout(() => pollForResult(scheduleId, attempt + 1), POLLING_INTERVAL_MS);
+            }
+            return; // Exit early from adding shifts
+        }
+
+        const newShifts: ScheduleItem[] = result.shifts.map((shift: any) => {
+            if (!shift.employee) {
+                console.warn(`Shift with ID ${shift.id} has no employee assigned.`);
+                return null; // Skip shifts without employees
+            }
+            return {
+                id: shift.id,
+                title: shift.shiftType,
+                employees: [shift.employee.name], // Assuming each shift has one employee
+                date: parseISO(shift.start),
+                color: getShiftTypeColor(shift.shiftType),
+                shiftType: shift.shiftType,
+                startTime: format(parseISO(shift.start), 'HH:mm'),
+                endTime: format(parseISO(shift.end), 'HH:mm'),
+            };
+        }).filter((item: ScheduleItem | null): item is ScheduleItem => item !== null);
+
+        // Update existing schedule items or add new ones
+        setScheduleItems(prevItems => {
+            const updatedItems = prevItems.filter(item => !newShifts.some(newShift => newShift.id === item.id));
+            return [...updatedItems, ...newShifts];
+        });
+
+        if (result.solverStatus === "NOT_SOLVING") {
+            toast.success("Solving is completed");
+            console.log("Solver finished. Processing results:", result);
+            processScheduleResult(result);
+            setIsSolving(false);
+        } else if (result.solverStatus === "SOLVING_ACTIVE") {
+            console.log(`Solver is still running (Status: ${result.solverStatus}). Polling again soon...`);
+            setTimeout(() => pollForResult(scheduleId, attempt + 1), POLLING_INTERVAL_MS);
+        } else {
+            const unknownStatus = result.solverStatus || "UNKNOWN";
+            console.warn(`Unknown solver status received: ${unknownStatus}`);
+            toast.warning(`Received unexpected status: ${unknownStatus}. Continuing to check...`);
+            setTimeout(() => pollForResult(scheduleId, attempt + 1), POLLING_INTERVAL_MS);
+        }
     } catch (error) {
-      console.error(`Error polling for schedule result (ID: ${scheduleId}):`, error);
-      toast.error(`Failed to get schedule status: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setIsSolving(false);
+        console.error(`Error polling for schedule result (ID: ${scheduleId}):`, error);
+        toast.error(`Failed to get schedule status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setIsSolving(false);
     }
-  };
+};
 
   // Auto-generate a schedule - Initiates solving and polling
   const handleSolveSchedule = async () => {
@@ -354,11 +385,12 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     toast.success('Schedule applied successfully!');
   };
 
-  // Clear the pending schedule
+  // Clear the pending schedule and all schedule items
   const handleClearPendingSchedule = () => {
-    setPendingSchedule([]);
-    setGeneratedSchedule(false);
-    toast.info('Generated schedule discarded');
+      setPendingSchedule([]);
+      setScheduleItems([]); // Clear all schedule items
+      setGeneratedSchedule(false);
+      toast.info('All changes discarded and schedule cleared');
   };
 
   // Get shifts for a specific day
@@ -558,14 +590,14 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
           <ScrollArea className="flex-1">
             <div className="space-y-3 pr-4">
               {selectedEmployees.map((employee: any) => {
-                const workload = getEmployeeWorkload(employee.name);
-                const pendingShifts = getPendingShiftsForEmployee(employee.name);
+                const workload = getEmployeeWorkload(employee.Name);
+                const pendingShifts = getPendingShiftsForEmployee(employee.Name);
                 const preferredShiftTypes = employee.preferredShiftTypes || [];
                 
                 return (
-                  <div key={employee.name} className="bg-white/50 rounded-md p-3 shadow-sm">
+                  <div key={employee.Name} className="bg-white/50 rounded-md p-3 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
-                      <div className="font-medium">{employee.name}</div>
+                      <div className="font-medium">{employee.Name}</div>
                       <Badge variant="outline">{workload}%</Badge>
                     </div>
                     <Progress 
@@ -818,8 +850,8 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
                           <SelectValue placeholder="Select an employee to add" />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableEmployees.map((emp: string) => (
-                            <SelectItem key={emp} value={emp}>{emp}</SelectItem>
+                          {selectedEmployees.map((emp: any) => (
+                            <SelectItem key={emp.EmployeeId} value={emp.Name}>{emp.Name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -842,102 +874,22 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       </Dialog>
 
       {/* Add Shift Dialog */}
-      <Dialog open={addShiftDialogOpen} onOpenChange={setAddShiftDialogOpen}>
-        <DialogContent 
-          className="sm:max-w-md"
-          aria-describedby="add-shift-description"
-        >
-          <DialogHeader>
-            <DialogTitle>Add New Shift</DialogTitle>
-            <DialogDescription>
-              {clickedDate && (
-                <>Add a shift for {format(clickedDate, 'MMMM d, yyyy')}</>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <p id="add-shift-description" className="sr-only">
-            Fill out the form to add a new shift. Required fields include shift type, start time, end time, and assigned employee.
-          </p>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Shift Type</label>
-              <Select value={selectedShiftType} onValueChange={(value) => setSelectedShiftType(value as ShiftType)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a shift type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SHIFT_TYPES).map(([key, value]) => (
-                    <SelectItem key={key} value={key as ShiftType}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Start Time</label>
-                <Input 
-                  type="time" 
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">End Time</label>
-                <Input 
-                  type="time" 
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Assign to Employee *</label>
-              <Select onValueChange={setEmployeeToAdd}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectedEmployees.map((emp: any) => {
-                    const preferredShiftTypes = emp.preferredShiftTypes || [];
-                    const isPreferred = preferredShiftTypes.includes(selectedShiftType);
-                    
-                    return (
-                      <SelectItem key={emp.id} value={emp.name}>
-                        <div className="flex items-center">
-                          {emp.name}
-                          {isPreferred && (
-                            <Badge className="ml-2 bg-green-100 text-green-800 h-5 text-[10px]">
-                              Preferred
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                * Required to add a shift
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddShiftDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleAddShift} 
-              disabled={!employeeToAdd || !startTime || !endTime}
-            >
-              Add Shift
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddShiftDialog
+        open={addShiftDialogOpen}
+        onOpenChange={setAddShiftDialogOpen}
+        clickedDate={clickedDate}
+        selectedShiftType={selectedShiftType}
+        setSelectedShiftType={setSelectedShiftType}
+        startTime={startTime}
+        setStartTime={setStartTime}
+        endTime={endTime}
+        setEndTime={setEndTime}
+        selectedEmployees={selectedEmployees}
+        employeeToAdd={employeeToAdd}
+        setEmployeeToAdd={setEmployeeToAdd}
+        handleAddShift={handleAddShift}
+        setAddShiftDialogOpen={setAddShiftDialogOpen}
+      />
       {/* Print Schedule Dialog */}
       <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
         <DialogContent 
