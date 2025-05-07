@@ -544,10 +544,10 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
               </DropdownMenuItem>
               {selectedEmployees.map((employee: any) => (
                 <DropdownMenuItem 
-                  key={employee.name} 
-                  onClick={() => setSelectedEmployee(employee.name)}
+                  key={employee.Name} 
+                  onClick={() => setSelectedEmployee(employee.Name)}
                 >
-                  {employee.name}
+                  {employee.Name}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

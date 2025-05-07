@@ -3,6 +3,7 @@ import { AlertCircle, Users, ArrowRight, ArrowLeft, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ApiService } from '@/services/api.service';
+import { useToast } from "@/components/ui/use-toast";
 import ShiftForm from './shift/ShiftForm';
 import ShiftList from './shift/ShiftList';
 
@@ -113,8 +114,21 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
     });
   };
 
+  const { toast } = useToast(); // <-- Add this line
+
   const handleAddShift = async () => {
     try {
+      // Validate that all required fields are filled
+      if (!newShiftStartTime || !newShiftEndTime || !newShiftLocation || !newShiftRequiredSkill) {
+        toast({
+          title: "Missing Fields",
+          description: "Please fill in all required fields",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Create the shift object with proper timestamp format
       const newShift = {
         StartTime: newShiftStartTime,
         EndTime: newShiftEndTime,
@@ -123,6 +137,7 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
         ShiftStatus: newShiftStatus
       };
 
+      console.log("Sending shift to database:", newShift);
       await ApiService.createShift(newShift);
       
       // Refresh the shift list
@@ -137,9 +152,35 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
       setNewShiftLocation('');
       setNewShiftRequiredSkill('');
       setNewShiftStatus('Scheduled');
+
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "Shift added successfully",
+        variant: "default",
+      });
     } catch (error) {
       console.error('Error creating shift:', error);
-      alert('Failed to create shift. Please try again.');
+      toast({
+        title: "Error",
+        description: "Failed to create shift. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const refreshShifts = async () => {
+    try {
+      setIsLoading(true);
+      const shiftsData = await ApiService.getShifts();
+      setShifts(shiftsData);
+      localStorage.setItem('cachedShifts', JSON.stringify(shiftsData));
+      localStorage.setItem('lastShiftsFetchTime', new Date().getTime().toString());
+    } catch (err) {
+      setError('Failed to fetch shifts');
+      console.error('Error fetching shifts:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -174,7 +215,8 @@ const ShiftManager = ({ onShiftsSelected, selectedEmployees }: ShiftManagerProps
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         setIsDialogOpen={setIsDialogOpen}
-        allShifts={shifts} // Pass all shifts from API
+        allShifts={shifts}
+        refreshShifts={refreshShifts} // <-- Pass the function here
       />
 
       <div className="mt-4">

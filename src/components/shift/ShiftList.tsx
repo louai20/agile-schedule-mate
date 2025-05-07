@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { getShiftType } from './ShiftUtils';
+import { useToast } from "@/components/ui/use-toast";
+import { ApiService } from '@/services/api.service';
 
 interface Shift {
   ShiftID: string;
@@ -26,7 +28,8 @@ interface ShiftListProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   setIsDialogOpen: (open: boolean) => void;
-  allShifts: Shift[]; // New prop for all shifts from API
+  allShifts: Shift[];
+  refreshShifts: () => void; // <-- Add this prop
 }
 
 const ShiftList: React.FC<ShiftListProps> = ({ 
@@ -36,8 +39,11 @@ const ShiftList: React.FC<ShiftListProps> = ({
   searchQuery,
   setSearchQuery,
   setIsDialogOpen,
-  allShifts // Use this for the delete dialog
+  allShifts, // Use this for the delete dialog
+  refreshShifts // <-- Add this here
 }) => {
+  // Move the useToast hook inside the component function
+  const { toast } = useToast();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [shiftToDelete, setShiftToDelete] = useState<Shift | null>(null);
 
@@ -62,12 +68,34 @@ const ShiftList: React.FC<ShiftListProps> = ({
     setIsDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
-    // In a real app, you would call an API to delete the shift
+  const confirmDelete = async () => {
     if (shiftToDelete) {
-      // Delete the specific shift
-      handleToggleShift(shiftToDelete); // Just deselect for now
-      setShiftToDelete(null);
+      try {
+        await ApiService.deleteShift(shiftToDelete.ShiftID);
+
+        if (selectedShifts.some(s => s.ShiftID === shiftToDelete.ShiftID)) {
+          handleToggleShift(shiftToDelete);
+        }
+
+        toast({
+          title: "Success",
+          description: "Shift deleted successfully",
+          variant: "default",
+        });
+
+        setShiftToDelete(null);
+        setIsDeleteDialogOpen(false);
+
+        // Instead of reloading, refresh shifts from parent
+        refreshShifts();
+      } catch (error) {
+        console.error('Error deleting shift:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete shift. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
     setIsDeleteDialogOpen(false);
   };
