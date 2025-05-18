@@ -16,7 +16,6 @@ import { useToast } from "@/components/ui/use-toast";
 interface Employee {
   Name: string;
   work_percentages: number;
-  employeeRoleId: string;
   created_at: string;
   Preferences: string;
   Availability: string;
@@ -32,15 +31,17 @@ interface EmployeeListProps {
   onEmployeesSelected: (employees: Employee[]) => void;
 }
 
+// REMOVE: interface EmployeeRole
+
 const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
   const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [employeeRoles, setEmployeeRoles] = useState<Record<string, EmployeeRole>>({});
+  // REMOVE: const [employeeRoles, setEmployeeRoles] = useState<Record<string, EmployeeRole>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState<Employee[]>([]);
-  const [isAllSelected, setIsAllSelected] = useState(false);  // Moved this up
+  const [isAllSelected, setIsAllSelected] = useState(false);
   const [newEmployeeName, setNewEmployeeName] = useState('');
-  const [newEmployeeRole, setNewEmployeeRole] = useState('');
+  // REMOVE: const [newEmployeeRole, setNewEmployeeRole] = useState('');
   const [newEmployeeSkills, setNewEmployeeSkills] = useState('');
   const [newEmployeeAvailability, setNewEmployeeAvailability] = useState('');
   const [newEmployeeWorkPercentage, setNewEmployeeWorkPercentage] = useState(60);
@@ -62,15 +63,13 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         
         // Check if we have cached data
         const cachedEmployees = localStorage.getItem('cachedEmployees');
-        const cachedRoles = localStorage.getItem('cachedEmployeeRoles');
         const lastFetchTime = localStorage.getItem('lastFetchTime');
         const currentTime = new Date().getTime();
         
         // If we have cached data and it's less than 5 minutes old, use it
-        if (cachedEmployees && cachedRoles && lastFetchTime && 
+        if (cachedEmployees && lastFetchTime && 
             (currentTime - parseInt(lastFetchTime)) < 5 * 60 * 1000) {
           setEmployees(JSON.parse(cachedEmployees));
-          setEmployeeRoles(JSON.parse(cachedRoles));
           setIsLoading(false);
           return;
         }
@@ -92,7 +91,6 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
             console.error(`Error fetching role for employee ${employee.EmployeeId}:`, error);
           }
         }
-        setEmployeeRoles(roles);
         localStorage.setItem('cachedEmployeeRoles', JSON.stringify(roles));
         localStorage.setItem('lastFetchTime', currentTime.toString());
       } catch (err) {
@@ -111,16 +109,12 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
     if (employees.length > 0) {
       localStorage.setItem('cachedEmployees', JSON.stringify(employees));
     }
-    if (Object.keys(employeeRoles).length > 0) {
-      localStorage.setItem('cachedEmployeeRoles', JSON.stringify(employeeRoles));
-    }
-  }, [employees, employeeRoles]);
+  }, [employees]);
 
   const filteredEmployees = employees.filter((employee) => {
     const query = searchQuery.toLowerCase();
     return (
       employee.Name.toLowerCase().includes(query) ||
-      employee.employeeRoleId.toLowerCase().includes(query) ||
       (employee.Preferences && (
         Array.isArray(employee.Preferences)
           ? employee.Preferences.some(pref => pref.toString().toLowerCase().includes(query))
@@ -171,7 +165,6 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         Name: newEmployeeName.charAt(0).toUpperCase() + newEmployeeName.slice(1),
         work_percentages: parseInt(newEmployeeWorkPercentage.toString()),
         Availability: [newEmployeeAvailability],
-        employeeRoleId: "307a4d64-2eae-4d3c-af98-0881f2730d25",
         Skills: newEmployeeSkills
           .split(',')
           .map(skill => skill.trim())
@@ -189,7 +182,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         setIsDialogOpen(false);
         // Reset form fields
         setNewEmployeeName('');
-        setNewEmployeeRole('');
+        // REMOVE: setNewEmployeeRole('');
         setNewEmployeeAvailability('');
         setNewEmployeeWorkPercentage(60);
         setNewEmployeeShiftTypes([]);
@@ -213,8 +206,6 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
   const handleEditEmployee = async (employee: Employee) => {
     setEditingEmployee(employee);
     setNewEmployeeName(employee.Name);
-    setNewEmployeeRole(employee.employeeRoleId);
-    setNewEmployeeAvailability(employee.Availability);
     setNewEmployeeWorkPercentage(employee.work_percentages);
     setNewEmployeeShiftTypes([employee.Preferences as ShiftType]);
     setIsDialogOpen(true);
@@ -271,7 +262,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
       <div className="flex justify-between items-start">
         <div>
           <h3 className="text-lg font-semibold">{employee.Name}</h3>
-          <p className="text-gray-600">Role: {employee.employeeRoleId}</p>
+          {/* REMOVE: <p className="text-gray-600">Role: {employee.employeeRoleId}</p> */}
           <p className="text-gray-600">Work Percentage: {employee.work_percentages}%</p>
           <p className="text-gray-600">Availability: {employee.Availability}</p>
           <p className="text-gray-600">Preferences: {employee.Preferences}</p>
@@ -420,7 +411,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                 <DialogTitle>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
               </DialogHeader>
               <p id="add-employee-description" className="sr-only">
-                Fill out the form to add a new employee to the system. Required fields include name, role, skills, availability, and preferred shift types.
+                Fill out the form to add a new employee to the system. Required fields include name, skills, availability, and preferred shift types.
               </p>
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
@@ -430,15 +421,6 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                     value={newEmployeeName}
                     onChange={(e) => setNewEmployeeName(e.target.value)}
                     placeholder="Enter employee name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="role" className="text-sm font-medium">Role</label>
-                  <Input
-                    id="role"
-                    value={newEmployeeRole}
-                    onChange={(e) => setNewEmployeeRole(e.target.value)}
-                    placeholder="Enter employee role"
                   />
                 </div>
                 <div className="space-y-2">
@@ -561,10 +543,6 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
                 </div>
                 <div>
                   <h3 className="font-medium">{employee.Name}</h3>
-                  <div className="flex items-center text-sm text-muted-foreground mt-1">
-                    <Briefcase className="h-3 w-3 mr-1" />
-                    {employeeRoles[employee.employeeRoleId]?.name || 'Loading role...'}
-                  </div>
                 </div>
               </div>
               

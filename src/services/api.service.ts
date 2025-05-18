@@ -132,10 +132,6 @@ export class ApiService {
         return this.fetchData(`${API_CONFIG.ENDPOINTS.EMPLOYEE_ROLE}?EmployeeRoleId=eq.${id}`);
     }
 
-    static async getEmployeeRoles() {
-        return this.fetchData(API_CONFIG.ENDPOINTS.EMPLOYEE_ROLE);
-    }
-
     // Shift related API calls
     static async getShifts() {
         return this.fetchData('/Shift');
