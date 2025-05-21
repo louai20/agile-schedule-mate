@@ -1,7 +1,8 @@
 export const API_CONFIG = {
     SUPABASE_URL: 'https://gmrgkccfhmdpucrrfwtf.supabase.co/rest/v1',
-    // Point to the local proxy path instead of the direct URL
-    TIMEFOLD_URL: '/timefold-api/schedules', // Use the path defined in vite.config.ts proxy
+    TIMEFOLD_URL: import.meta.env.MODE === 'production'
+        ? 'https://your-remote-backend.com/timefold-api/schedules' // <-- Replace with your actual backend URL
+        : '/timefold-api/schedules', // Local proxy path for development
     ENDPOINTS: {
         EMPLOYEE: '/Employee',
         SHIFT: '/Shift'
