@@ -4,7 +4,6 @@ export const API_CONFIG = {
     TIMEFOLD_URL: '/timefold-api/schedules', // Use the path defined in vite.config.ts proxy
     ENDPOINTS: {
         EMPLOYEE: '/Employee',
-        EMPLOYEE_ROLE: '/EmployeeRole',
         SHIFT: '/Shift'
     },
     HEADERS: {

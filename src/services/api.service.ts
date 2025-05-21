@@ -5,17 +5,11 @@ interface Employee {
     Name: string;
     work_percentages: number;
     Availability: string;  // Stored as JSON string in database
-    employeeRoleId: string;
     created_at: string;
     Skills: string;       // Stored as JSON string in database
     Preferences: string;  // Stored as JSON string in database
 }
 
-interface EmployeeRole {
-    EmployeeRoleId: string;
-    name: string;
-    created_at: string;
-}
 
 interface Shift {
     ShiftID: string;
@@ -127,10 +121,6 @@ export class ApiService {
         });
     }
 
-    // Employee Role related API calls
-    static async getEmployeeRoleById(id: string) {
-        return this.fetchData(`${API_CONFIG.ENDPOINTS.EMPLOYEE_ROLE}?EmployeeRoleId=eq.${id}`);
-    }
 
     // Shift related API calls
     static async getShifts() {

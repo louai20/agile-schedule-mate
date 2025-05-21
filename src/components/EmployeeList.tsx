@@ -21,17 +21,9 @@ interface Employee {
   Availability: string;
 }
 
-interface EmployeeRole {
-  EmployeeRoleId: string;
-  name: string;
-  created_at: string;
-}
-
 interface EmployeeListProps {
   onEmployeesSelected: (employees: Employee[]) => void;
 }
-
-// REMOVE: interface EmployeeRole
 
 const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
   const { toast } = useToast();
@@ -73,25 +65,12 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
           setIsLoading(false);
           return;
         }
-
+    
         // Otherwise, fetch fresh data
         const employeesData = await ApiService.getEmployees();
         setEmployees(employeesData);
         localStorage.setItem('cachedEmployees', JSON.stringify(employeesData));
-
-        // Fetch roles for each employee
-        const roles: Record<string, EmployeeRole> = {};
-        for (const employee of employeesData) {
-          try {
-            const roleData = await ApiService.getEmployeeRoleById(employee.employeeRoleId);
-            if (roleData && roleData.length > 0) {
-              roles[employee.employeeRoleId] = roleData[0];
-            }
-          } catch (error) {
-            console.error(`Error fetching role for employee ${employee.EmployeeId}:`, error);
-          }
-        }
-        localStorage.setItem('cachedEmployeeRoles', JSON.stringify(roles));
+    
         localStorage.setItem('lastFetchTime', currentTime.toString());
       } catch (err) {
         setError('Failed to fetch employees');
@@ -100,7 +79,7 @@ const EmployeeList = ({ onEmployeesSelected }: EmployeeListProps) => {
         setIsLoading(false);
       }
     };
-
+  
     fetchData();
   }, []);
 
