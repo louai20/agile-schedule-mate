@@ -416,12 +416,26 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
 
   // Calculate employee workload percentages
   const getEmployeeWorkload = (employeeName: string) => {
-    const totalDays = calendarDays.length;
+    const employee = selectedEmployees.find((emp: any) => emp.Name === employeeName);
+    const fullTimeMinutes= 160 * 60;
+    const totalWorkminutes =  (employee.work_percentages * fullTimeMinutes)/100;
+
     const employeeShifts = scheduleItems.filter(item => 
       item.employees.includes(employeeName)
-    ).length;
+    );
+    const totalShiftsMinutes = employeeShifts.reduce((sum, shift) => {
+      const [startHour, startMinute] = shift.startTime.split(":").map(Number);
+      const [endHour, endMinute] = shift.endTime.split(":").map(Number);
+      const start = startHour * 60 + startMinute;
+      let end = endHour * 60 + endMinute;
+      if (end <= start) {
+        end += 24 * 60;
+      }
+      return sum + (end - start);
+    }, 0);
+    console.log(totalShiftsMinutes);
     
-    return Math.round((employeeShifts / totalDays) * 100);
+    return employee.work_percentages - (Math.round((totalShiftsMinutes / totalWorkminutes) * 100));
   };
 
   // Get color for workload percentage
@@ -583,9 +597,9 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       <div className="flex flex-col lg:flex-row gap-4 h-full">
         {/* Employee list with workload */}
         <div className="w-full lg:w-64 glass-card p-4 overflow-hidden flex flex-col">
-          <h2 className="text-lg font-medium mb-4">Employees</h2>
+          <h2 className="text-lg font-medium mb-4">Work Procentage</h2>
           <div className="mb-2 text-xs text-muted-foreground">
-            Monthly workload
+          Percentage of Work Left by Month
           </div>
           <ScrollArea className="flex-1">
             <div className="space-y-3 pr-4">

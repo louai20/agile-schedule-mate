@@ -1,7 +1,7 @@
 export const API_CONFIG = {
     SUPABASE_URL: 'https://gmrgkccfhmdpucrrfwtf.supabase.co/rest/v1',
     TIMEFOLD_URL: import.meta.env.MODE === 'production'
-        ? 'https://thick-susann-timfold-95233258.koyeb.app/timefold-api/schedules'
+        ? 'https://thick-susann-timfold-95233258.koyeb.app/schedules/' // Use your actual backend URL here
         : '/timefold-api/schedules', // Local proxy path for development
     ENDPOINTS: {
         EMPLOYEE: '/Employee',
