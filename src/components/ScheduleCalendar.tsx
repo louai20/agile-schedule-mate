@@ -433,7 +433,6 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       }
       return sum + (end - start);
     }, 0);
-    console.log(totalShiftsMinutes);
     
     return employee.work_percentages - (Math.round((totalShiftsMinutes / totalWorkminutes) * 100));
   };
