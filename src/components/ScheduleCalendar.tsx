@@ -434,14 +434,14 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       return sum + (end - start);
     }, 0);
     if (totalShiftsMinutes == 0) {
-      return employee.work_percentages; // if there is no shifts, return the employee's full workload percentage
+      return employee.work_percentages;
     }
     if(totalShiftsMinutes > totalWorkminutes) {
       window.alert(`${employeeName} works more than their work percentage`)
       return NaN; 
     }
   // Calculate workload percentage, never negative
-  return employee.work_percentages - (Math.round((totalShiftsMinutes / totalWorkminutes) * 100));
+  return employee.work_percentages - (Math.round((totalShiftsMinutes / totalWorkminutes))* 100);
   };
 
   // Get color for workload percentage
