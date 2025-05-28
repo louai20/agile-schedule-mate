@@ -443,8 +443,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
     if (totalShiftsMinutes == totalWorkminutes){
       return 0;
     }
-
-  return (Math.round(((totalWorkminutes-totalShiftsMinutes)/totalWorkminutes)*100));
+  return (Math.round(((totalWorkminutes-totalShiftsMinutes)/fullTimeMinutes)*100));
   };
 
   // Get color for workload percentage
