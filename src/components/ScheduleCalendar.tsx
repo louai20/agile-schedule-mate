@@ -441,7 +441,7 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       return NaN; 
     }
   // Calculate workload percentage, never negative
-  return employee.work_percentages - (Math.round((totalShiftsMinutes / totalWorkminutes))* 100);
+  return employee.work_percentages - ((totalShiftsMinutes / totalWorkminutes)* 100);
   };
 
   // Get color for workload percentage
