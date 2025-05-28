@@ -440,8 +440,9 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       window.alert(`${employeeName} works more than their work percentage`)
       return NaN; 
     }
-  console.log(totalShiftsMinutes)
-  console.log(totalWorkminutes)
+    if (totalShiftsMinutes == totalWorkminutes){
+      return 0;
+    }
 
   return (Math.round(((totalWorkminutes-totalShiftsMinutes)/totalWorkminutes)*100));
   };
