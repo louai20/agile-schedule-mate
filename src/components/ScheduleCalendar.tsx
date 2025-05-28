@@ -440,10 +440,10 @@ const ScheduleCalendar = ({ selectedEmployees, selectedShifts }: ScheduleCalenda
       window.alert(`${employeeName} works more than their work percentage`)
       return NaN; 
     }
-  console.log(((totalWorkminutes-totalShiftsMinutes)/totalWorkminutes)*100)
-  console.log((totalWorkminutes))
-  // Calculate workload percentage, never negative
-  return employee.work_percentages - (Math.round((totalShiftsMinutes / totalWorkminutes) * 100));
+  console.log(totalShiftsMinutes)
+  console.log(totalWorkminutes)
+
+  return (Math.round(((totalWorkminutes-totalShiftsMinutes)/totalWorkminutes)*100));
   };
 
   // Get color for workload percentage
